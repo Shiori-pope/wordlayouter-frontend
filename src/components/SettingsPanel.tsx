@@ -217,7 +217,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }
           <Label className={styles.formLabel}>公式默认字体</Label>
           <Input
             className={styles.formInput}
-            value={settings.mathFormulaFont}
+            value={settings?.mathFormulaFont ?? ''}
             onChange={(e, data) =>
               handleChange('mathFormulaFont', data.value)
             }
@@ -232,7 +232,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }
           <Label className={styles.formLabel}>公式默认字号</Label>
           <Dropdown
             className={styles.formInput}
-            value={settings.mathFormulaFontSize}
+            value={settings?.mathFormulaFontSize ?? '小四'}
             onOptionSelect={(e, data) =>
               handleChange('mathFormulaFontSize', data.optionValue || '小四')
             }
