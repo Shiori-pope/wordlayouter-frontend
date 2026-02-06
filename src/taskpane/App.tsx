@@ -679,21 +679,8 @@ const App: React.FC = () => {
               <Button appearance="secondary" onClick={() => setShowSettings(false)}>关闭</Button>
             </div>
             {/* 合并显示：左侧用户信息（含卡密兑换），右侧为插件设置（数学公式等） */}
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              <div style={{ flex: '0 0 320px' }}>
-                {userInfo ? (
-                  <div style={{ padding: 12, borderRadius: 8, background: '#fafafa' }}>
-                    <UserPanel user={userInfo} onLogout={handleLogout} />
-                  </div>
-                ) : (
-                  <div style={{ padding: 12 }}>未登录</div>
-                )}
-              </div>
-              <div style={{ flex: '1 1 auto', minWidth: 300 }}>
-                <div style={{ padding: 12, borderRadius: 8, background: '#fff' }}>
-                  <SettingsPanel onClose={() => setShowSettings(false)} />
-                </div>
-              </div>
+            <div>
+              <SettingsPanel onClose={() => setShowSettings(false)} user={userInfo} onLogout={handleLogout} />
             </div>
           </div>
         </div>

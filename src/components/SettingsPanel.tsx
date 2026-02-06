@@ -8,9 +8,11 @@ import {
   Spinner,
   Dropdown,
   Option,
+  Text,
 } from '@fluentui/react-components';
 import { getSettings, saveSettings, resetSettings, PluginSettings } from '../types/settings';
 import { WORD_FONT_SIZES } from '../types/wordFonts';
+import { authService } from '../services/authService';
 
 const useStyles = makeStyles({
   root: {
@@ -60,15 +62,30 @@ const useStyles = makeStyles({
   },
 });
 
-interface SettingsPanelProps {
-  onClose?: () => void;
+interface UserInfo {
+  email: string;
+  isOfficeUser?: boolean;
+  balance?: number;
+  remainingTokens?: number;
+  createdAt?: string;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
+interface SettingsPanelProps {
+  onClose?: () => void;
+  user?: UserInfo;
+  onLogout?: () => void;
+}
+
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }) => {
   const styles = useStyles();
   const [settings, setSettings] = useState<PluginSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  // Redeem / account
+  const [cardCode, setCardCode] = useState('');
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemMessage, setRedeemMessage] = useState('');
+  const [refreshLoading, setRefreshLoading] = useState(false);
 
   useEffect(() => {
     // 加载设置
@@ -98,22 +115,95 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const handleReset = () => {
     if (window.confirm('确定要重置为默认设置吗？')) {
       resetSettings();
-      setSettings(getSettings());
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+  const handleRedeemCard = async (e?: React.FormEvent) => {
+    e && e.preventDefault();
+    if (!cardCode.trim()) return;
+    setRedeemLoading(true);
+    setRedeemMessage('');
+    try {
+      const result = await authService.redeemCard(cardCode.trim());
+      if (result.success) {
+        setRedeemMessage(`成功兑换 ${result.tokensAdded || 0} Token!`);
+        setCardCode('');
+        // 尝试刷新 user info if provided
+        try { await authService.refreshUserInfo(); } catch (_) {}
+      } else {
+        setRedeemMessage(result.error || '兑换失败');
+      }
+    } catch (err) {
+      console.error('Redeem Error:', err);
+      setRedeemMessage('兑换失败，请重试');
+    } finally {
+      setRedeemLoading(false);
     }
   };
 
-  if (loading || !settings) {
-    return <Spinner label="加载设置中..." />;
-  }
+  const handleRefreshInfo = async () => {
+    setRefreshLoading(true);
+    try {
+      await authService.refreshUserInfo();
+    } catch (err) {
+      console.error('Refresh Error:', err);
+    } finally {
+      setRefreshLoading(false);
+    }
+  };
+
+  const formatTokens = (tokens: number | undefined): string => {
+    if (tokens === undefined || tokens === null) {
+      return '0';
+    }
+    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
+    return tokens.toString();
+  };
 
   return (
     <div className={styles.root}>
-      <h2>插件设置</h2>
+      <h2>设置</h2>
 
-      {/* 数学公式设置 */}
+      {/* Account / User Section */}
       <div className={styles.section}>
+        <div className={styles.sectionTitle}>账户</div>
+        <div className={styles.formGroup}>
+          <Label className={styles.formLabel}>邮箱</Label>
+          <div className={styles.formInput}>{user ? user.email : '未登录'}</div>
+        </div>
+
+        <div className={styles.formGroup}>
+          <Label className={styles.formLabel}>账户类型</Label>
+          <div className={styles.formInput}>{user?.isOfficeUser ? 'Office SSO' : '邮箱账户'}</div>
+        </div>
+
+        <div className={styles.formGroup}>
+          <Label className={styles.formLabel}>剩余 Token</Label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Text>{formatTokens(user?.balance || user?.remainingTokens)}</Text>
+            <Button appearance="subtle" onClick={handleRefreshInfo} disabled={refreshLoading}>{refreshLoading ? '⟳' : '刷新'}</Button>
+          </div>
+        </div>
+
+        <div className="redeem-section" style={{ marginTop: 8 }}>
+          <h4 style={{ margin: '8px 0' }}>卡密充值</h4>
+          <form onSubmit={handleRedeemCard} className="redeem-form" style={{ display: 'flex', gap: 8 }}>
+            <Input
+              value={cardCode}
+              onChange={(e, data) => setCardCode(data.value)}
+              placeholder="输入卡密"
+              disabled={redeemLoading}
+            />
+            <Button type="submit" disabled={redeemLoading || !cardCode.trim()} appearance="primary">
+              {redeemLoading ? '兑换中...' : '兑换'}
+            </Button>
+          </form>
+          {redeemMessage && (
+            <div style={{ marginTop: 8, color: redeemMessage.includes('成功') ? '#107c10' : '#c53030' }}>{redeemMessage}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Math Formula Settings */}
+      <div className={styles.section} style={{ marginTop: 12 }}>
         <div className={styles.sectionTitle}>数学公式</div>
 
         <div className={styles.formGroup}>
@@ -162,6 +252,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         </Button>
         <Button appearance="secondary" onClick={handleReset}>
           重置为默认
+        </Button>
+        {onClose && (
+          <Button appearance="secondary" onClick={onClose}>
+            关闭
+          </Button>
+        )}
+        {onLogout && (
+          <Button appearance="outline" onClick={onLogout}>退出登录</Button>
+        )}
+      </div>
+    </div>
+  );
         </Button>
         {onClose && (
           <Button appearance="secondary" onClick={onClose}>
