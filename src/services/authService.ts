@@ -64,17 +64,24 @@ function getMsalInstance(): IPublicClientApplication {
  * 优先从 Office.context.roamingSettings 读取（持久化），回退到 localStorage
  */
 function getStoredToken(): string | null {
+  // 优先从 Office roamingSettings 读取，但不要因为 roamingSettings 抛错而放弃 localStorage
   try {
-    // 优先使用 Office roamingSettings（关闭 Word 后仍保留）
     if (typeof Office !== 'undefined' && Office.context?.roamingSettings) {
-      const token = Office.context.roamingSettings.get('wordai_auth_token');
-      if (token) {
-        return token;
+      try {
+        const token = Office.context.roamingSettings.get('wordai_auth_token');
+        if (token) return token;
+      } catch (err) {
+        console.warn('Office roamingSettings.get 失败，回退到 localStorage', err);
       }
     }
-    // 回退到 localStorage
+  } catch (err) {
+    console.warn('读取 Office roamingSettings 时发生错误，继续尝试 localStorage', err);
+  }
+
+  try {
     return localStorage.getItem('wordai_auth_token');
-  } catch {
+  } catch (err) {
+    console.error('读取 localStorage 失败:', err);
     return null;
   }
 }
@@ -85,19 +92,28 @@ function getStoredToken(): string | null {
  */
 function storeToken(token: string): void {
   try {
-    // 存储到 Office roamingSettings（持久化）
-    if (typeof Office !== 'undefined' && Office.context?.roamingSettings) {
-      Office.context.roamingSettings.set('wordai_auth_token', token);
-      Office.context.roamingSettings.saveAsync((result) => {
-        if (result.status === Office.AsyncResultStatus.Failed) {
-          console.error('Office roamingSettings 保存失败:', result.error?.message);
-        } else {
-          console.log('✅ Token 已保存到 Office roamingSettings');
-        }
-      });
+    // 先写入 localStorage（同步），以确保刷新时可用
+    try {
+      localStorage.setItem('wordai_auth_token', token);
+    } catch (err) {
+      console.warn('写入 localStorage 失败:', err);
     }
-    // 同时存储到 localStorage（兼容性）
-    localStorage.setItem('wordai_auth_token', token);
+
+    // 再尝试写入 Office roamingSettings（异步），但不应阻塞主流程
+    if (typeof Office !== 'undefined' && Office.context?.roamingSettings) {
+      try {
+        Office.context.roamingSettings.set('wordai_auth_token', token);
+        Office.context.roamingSettings.saveAsync((result) => {
+          if (result.status === Office.AsyncResultStatus.Failed) {
+            console.error('Office roamingSettings 保存失败:', result.error?.message);
+          } else {
+            console.log('✅ Token 已保存到 Office roamingSettings');
+          }
+        });
+      } catch (err) {
+        console.warn('保存到 Office roamingSettings 失败:', err);
+      }
+    }
   } catch (error) {
     console.error('存储 Token 失败:', error);
   }
@@ -108,21 +124,34 @@ function storeToken(token: string): void {
  */
 function clearAuth(): void {
   try {
-    // 清除 Office roamingSettings
-    if (typeof Office !== 'undefined' && Office.context?.roamingSettings) {
-      Office.context.roamingSettings.remove('wordai_auth_token');
-      Office.context.roamingSettings.saveAsync();
+    // 移除 localStorage 中的认证信息（优先）
+    try {
+      localStorage.removeItem('wordai_auth_token');
+      localStorage.removeItem('wordai_user_info');
+    } catch (err) {
+      console.warn('清除 localStorage 认证信息失败:', err);
     }
-    // 清除 localStorage
-    localStorage.removeItem('wordai_auth_token');
-    localStorage.removeItem('wordai_user_info');
-    
-    // 清除 MSAL 缓存
-    Object.keys(localStorage).forEach(key => {
-      if (key.includes('msal')) {
-        localStorage.removeItem(key);
+
+    // 再尝试清除 Office roamingSettings（若可用）
+    if (typeof Office !== 'undefined' && Office.context?.roamingSettings) {
+      try {
+        Office.context.roamingSettings.remove('wordai_auth_token');
+        Office.context.roamingSettings.saveAsync();
+      } catch (err) {
+        console.warn('清除 Office roamingSettings 失败:', err);
       }
-    });
+    }
+
+    // 清除 MSAL 缓存（以包含 msal 前缀的 localStorage 键为准）
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('msal')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (err) {
+      console.warn('清除 MSAL 本地缓存失败:', err);
+    }
   } catch (error) {
     console.error('清除认证信息失败:', error);
   }
