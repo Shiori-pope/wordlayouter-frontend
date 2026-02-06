@@ -39,8 +39,3 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
-
-# Keep only .env and this .gitignore in the repo; ignore everything else
-/*
-!.gitignore
-!.env
