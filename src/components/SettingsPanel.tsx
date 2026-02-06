@@ -115,6 +115,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }
   const handleReset = () => {
     if (window.confirm('确定要重置为默认设置吗？')) {
       resetSettings();
+      const loaded = getSettings();
+      setSettings(loaded);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
+  };
+
   const handleRedeemCard = async (e?: React.FormEvent) => {
     e && e.preventDefault();
     if (!cardCode.trim()) return;
@@ -260,15 +267,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }
         )}
         {onLogout && (
           <Button appearance="outline" onClick={onLogout}>退出登录</Button>
-        )}
-      </div>
-    </div>
-  );
-        </Button>
-        {onClose && (
-          <Button appearance="secondary" onClick={onClose}>
-            关闭
-          </Button>
         )}
       </div>
     </div>
