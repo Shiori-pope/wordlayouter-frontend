@@ -53,15 +53,16 @@ const useStyles = makeStyles({
   header: {
     display: 'flex',
     alignItems: 'center',
-    ...shorthands.gap('10px'),
-    ...shorthands.padding('12px', '16px'),
+    ...shorthands.gap('8px'),
+    padding: '8px 12px',
     background: '#ffffff',
-    ...shorthands.borderBottom('1px', 'solid', '#e0e0e0'),
+    height: '44px',
+    ...shorthands.borderBottom('1px', 'solid', '#eee'),
     flexShrink: 0,
   },
   headerIcon: {
-    width: '32px',
-    height: '32px',
+    width: '24px',
+    height: '24px',
     ...shorthands.borderRadius('8px'),
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     display: 'flex',
@@ -70,9 +71,37 @@ const useStyles = makeStyles({
     flexShrink: 0,
   },
   headerText: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '600',
     color: tokens.colorNeutralForeground1,
+  },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  tokenBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 8px',
+    borderRadius: '8px',
+    background: '#fafafa',
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground3,
+    border: '1px solid #f0f0f0',
+  },
+  tokenPlus: {
+    width: '16px',
+    height: '16px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    background: '#e6f0ff',
+    color: '#3370ff',
+    cursor: 'pointer',
+    fontSize: '12px',
   },
   messagesContainer: {
     flex: '1 1 auto',
@@ -99,19 +128,17 @@ const useStyles = makeStyles({
   },
   messageBubble: {
     ...shorthands.padding('10px', '14px'),
-    ...shorthands.borderRadius('12px'),
+    ...shorthands.borderRadius('8px'),
     lineHeight: '1.5',
     fontSize: '13px',
   },
   userBubble: {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: '#ffffff',
-    borderBottomRightRadius: '4px',
   },
   assistantBubble: {
     background: '#ffffff',
     color: tokens.colorNeutralForeground1,
-    borderBottomLeftRadius: '4px',
     ...shorthands.border('1px', 'solid', '#e0e0e0'),
   },
   messageTime: {
@@ -145,6 +172,7 @@ const useStyles = makeStyles({
     flexShrink: 0,
     background: '#ffffff',
     ...shorthands.borderTop('1px', 'solid', '#e0e0e0'),
+    paddingBottom: '8px',
   },
   debugPanel: {
     ...shorthands.borderBottom('1px', 'solid', '#e0e0e0'),
@@ -194,6 +222,7 @@ const useStyles = makeStyles({
   },
   inputArea: {
     ...shorthands.padding('12px', '16px'),
+    paddingBottom: '12px',
   },
   controlsRow: {
     display: 'flex',
@@ -208,13 +237,15 @@ const useStyles = makeStyles({
   },
   inputField: {
     flex: 1,
-    ...shorthands.borderRadius('20px'),
+    borderRadius: '12px',
     background: '#f5f5f5',
-    ...shorthands.border('1px', 'solid', '#e0e0e0'),
+    ...shorthands.border('1px', 'solid', '#e8e8e8'),
     ':focus-within': {
       background: '#ffffff',
       ...shorthands.border('1px', 'solid', '#667eea'),
     },
+    padding: '8px',
+    boxSizing: 'border-box',
   },
   sendBtn: {
     width: '36px',
@@ -306,6 +337,7 @@ const App: React.FC = () => {
   const [debugMode, setDebugMode] = useState(false);
   const [debugHtml, setDebugHtml] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [activePreset, setActivePreset] = useState<LayoutPreset | null>(null);
   const [activeModel, setActiveModel] = useState<ModelConfig | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<ParsedFile[]>([]);
@@ -325,6 +357,15 @@ const App: React.FC = () => {
     setActivePreset(getActivePreset());
     setActiveModel(getActiveModel());
   }, []);
+
+  // 自动调整 textarea 高度
+  const autosize = () => {
+    const ta = inputRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    const maxHeight = 5 * 20; // 大约 5 行，按 20px 行高
+    ta.style.height = Math.min(ta.scrollHeight, maxHeight) + 'px';
+  };
 
   // 检查用户认证状态
   useEffect(() => {
@@ -608,44 +649,68 @@ const App: React.FC = () => {
     <div className={styles.root}>
       {/* Header */}
       <div className={styles.header}>
-        <div className={styles.headerIcon}>
-          <Sparkle24Filled style={{ color: '#ffffff', width: 18, height: 18 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className={styles.headerIcon}>
+            <Sparkle24Filled style={{ color: '#ffffff', width: 14, height: 14 }} />
+          </div>
+          <Text className={styles.headerText}>Word AI</Text>
         </div>
-        <Text className={styles.headerText}>Word AI 助手</Text>
-        <Button
-          icon={<Settings24Regular />}
-          appearance="subtle"
-          onClick={() => setShowSettings(!showSettings)}
-          title="打开设置"
-          style={{ marginLeft: 'auto' }}
-        />
+        <div style={{ marginLeft: 'auto' }} className={styles.headerRight}>
+          <div className={styles.tokenBox} title="剩余 Token：10.0K">
+            <span style={{ fontWeight: 600 }}>10.0K</span>
+            <span style={{ fontSize: 11, color: '#666' }}>Token</span>
+            <div className={styles.tokenPlus} onClick={() => setShowSettings(true)}>+</div>
+          </div>
+          <Button
+            icon={<Settings24Regular />}
+            appearance="subtle"
+            onClick={() => setShowSettings(!showSettings)}
+            title="设置"
+          />
+        </div>
       </div>
 
-      {/* Settings Panel */}
+      {/* Settings Overlay (隐藏管理功能到覆盖层) */}
       {showSettings && (
-        <div style={{ borderBottom: '1px solid #e0e0e0', background: '#fafafa' }}>
-          <SettingsPanel onClose={() => setShowSettings(false)} />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '92%', maxWidth: 880, maxHeight: '92%', overflow: 'auto', borderRadius: 12, background: '#fff', padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>设置</h3>
+              <Button appearance="secondary" onClick={() => setShowSettings(false)}>关闭</Button>
+            </div>
+            <SettingsPanel onClose={() => setShowSettings(false)} />
+            <div style={{ marginTop: 16 }}>
+              <ModelSelector onModelChange={handleModelChange} />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <LayoutPresetPanel onPresetChange={handlePresetChange} />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <FileUploadButton
+                currentModel={activeModel}
+                onFilesChange={setUploadedFiles}
+                uploadedFiles={uploadedFiles}
+                onError={setFileError}
+              />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* User Panel */}
-      {userInfo && (
-        <div style={{ borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
-          <UserPanel user={userInfo} onLogout={handleLogout} />
-        </div>
-      )}
+      {/* UserPanel 已移入设置覆盖层 */}
 
       {/* Messages */}
       <div className={styles.messagesContainer} ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>
-              <TextBold24Regular style={{ color: '#667eea', width: 24, height: 24 }} />
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ padding: 12, borderRadius: 8, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', cursor: 'pointer' }} onClick={() => setInput('请帮我润色以下内容：')}>
+                帮我润色这段话
+              </div>
+              <div style={{ padding: 12, borderRadius: 8, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', cursor: 'pointer' }} onClick={() => setInput('请总结以下内容要点：')}>
+                总结全文
+              </div>
             </div>
-            <Text size={300} weight="semibold">开始对话</Text>
-            <Text size={100} align="center" style={{ maxWidth: 180 }}>
-              输入需求，生成格式化内容
-            </Text>
           </div>
         ) : (
           messages.map((message, index) => (
@@ -727,79 +792,68 @@ const App: React.FC = () => {
 
       {/* Bottom Area */}
       <div className={styles.bottomArea}>
-        {/* Debug Panel */}
-        <div className={styles.debugPanel}>
-          <div className={styles.debugHeader} onClick={() => setDebugMode(!debugMode)}>
-            <div className={styles.debugHeaderLeft}>
-              <Code24Regular style={{ width: 14, height: 14 }} />
-              <span>Debug HTML</span>
-            </div>
-            {debugMode ? (
-              <ChevronDown16Regular style={{ width: 14, height: 14, color: tokens.colorNeutralForeground3 }} />
-            ) : (
-              <ChevronUp16Regular style={{ width: 14, height: 14, color: tokens.colorNeutralForeground3 }} />
-            )}
-          </div>
-          {debugMode && (
-            <div className={styles.debugContent}>
-              <textarea
-                className={styles.debugTextarea}
-                value={debugHtml}
-                onChange={(e) => setDebugHtml(e.target.value)}
-                placeholder="输入 HTML 代码测试插入效果..."
-              />
-              <div className={styles.debugActions}>
-                <Button
-                  appearance="primary"
-                  icon={<DocumentAdd24Regular />}
-                  onClick={handleDebugInsert}
-                  disabled={!debugHtml.trim()}
-                  size="small"
-                >
-                  插入到 Word
-                </Button>
-                <Button
-                  appearance="subtle"
-                  icon={<Delete24Regular />}
-                  onClick={() => setDebugHtml('')}
-                  size="small"
-                >
-                  清空
-                </Button>
+        {/* Debug Panel - 仅开发模式显示 */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className={styles.debugPanel}>
+            <div className={styles.debugHeader} onClick={() => setDebugMode(!debugMode)}>
+              <div className={styles.debugHeaderLeft}>
+                <Code24Regular style={{ width: 14, height: 14 }} />
+                <span>Debug HTML</span>
               </div>
+              {debugMode ? (
+                <ChevronDown16Regular style={{ width: 14, height: 14, color: tokens.colorNeutralForeground3 }} />
+              ) : (
+                <ChevronUp16Regular style={{ width: 14, height: 14, color: tokens.colorNeutralForeground3 }} />
+              )}
             </div>
-          )}
-        </div>
-
-        {/* File Strip */}
-        <FileStrip files={uploadedFiles} onRemove={handleRemoveFile} />
-
-        {/* Input Area */}
-        <div className={styles.inputArea}>
-          {/* Controls Row - GitHub Copilot style */}
-          <div className={styles.controlsRow}>
-            <ModelSelector onModelChange={handleModelChange} />
-            <LayoutPresetPanel onPresetChange={handlePresetChange} />
-            <FileUploadButton
-              currentModel={activeModel}
-              onFilesChange={setUploadedFiles}
-              uploadedFiles={uploadedFiles}
-              onError={setFileError}
-            />
-            {fileError && (
-              <Text style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px' }}>
-                {fileError}
-              </Text>
+            {debugMode && (
+              <div className={styles.debugContent}>
+                <textarea
+                  className={styles.debugTextarea}
+                  value={debugHtml}
+                  onChange={(e) => setDebugHtml(e.target.value)}
+                  placeholder="输入 HTML 代码测试插入效果..."
+                />
+                <div className={styles.debugActions}>
+                  <Button
+                    appearance="primary"
+                    icon={<DocumentAdd24Regular />}
+                    onClick={handleDebugInsert}
+                    disabled={!debugHtml.trim()}
+                    size="small"
+                  >
+                    插入到 Word
+                  </Button>
+                  <Button
+                    appearance="subtle"
+                    icon={<Delete24Regular />}
+                    onClick={() => setDebugHtml('')}
+                    size="small"
+                  >
+                    清空
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
+        )}
 
-          {/* Input Row */}
-          <div className={styles.inputRow}>
-            <Input
+        {/* File Strip 已移到设置中 */}
+        {/* Input Area: 精简主界面，管理控件在设置中 */}
+        <div className={styles.inputArea}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <TextBold24Regular style={{ width: 18, height: 18, color: '#666' }} />
+            <DocumentAdd24Regular style={{ width: 18, height: 18, color: '#666' }} />
+            <DocumentAdd24Regular style={{ width: 18, height: 18, color: '#666' }} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <textarea
+              ref={inputRef}
               className={styles.inputField}
               placeholder="输入需求..."
               value={input}
-              onChange={(e, data) => setInput(data.value)}
+              onChange={(e) => { setInput(e.target.value); autosize(); }}
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -807,6 +861,7 @@ const App: React.FC = () => {
                 }
               }}
               disabled={loading}
+              style={{ width: '100%', resize: 'none', overflow: 'auto', maxHeight: '100px' }}
             />
             <Button
               className={styles.sendBtn}
