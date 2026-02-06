@@ -10,7 +10,8 @@ export interface PluginSettings {
 
 // 默认设置
 export const DEFAULT_SETTINGS: PluginSettings = {
-  mathFormulaFont: '宋体',
+  // 默认使用 Word 的内置数学字体
+  mathFormulaFont: 'Cambria Math',
   mathFormulaFontSize: '小四',
 };
 

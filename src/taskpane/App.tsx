@@ -678,27 +678,23 @@ const App: React.FC = () => {
               <h3 style={{ margin: 0 }}>设置</h3>
               <Button appearance="secondary" onClick={() => setShowSettings(false)}>关闭</Button>
             </div>
-            <SettingsPanel onClose={() => setShowSettings(false)} />
-            <div style={{ marginTop: 16 }}>
-              <ModelSelector onModelChange={handleModelChange} />
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <LayoutPresetPanel onPresetChange={handlePresetChange} />
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <FileUploadButton
-                currentModel={activeModel}
-                onFilesChange={setUploadedFiles}
-                uploadedFiles={uploadedFiles}
-                onError={setFileError}
-              />
-            </div>
-            {/* 恢复用户面板（含卡密兑换）到设置页 */}
-            {userInfo && (
-              <div style={{ marginTop: 16 }}>
-                <UserPanel user={userInfo} onLogout={handleLogout} />
+            {/* 合并显示：左侧用户信息（含卡密兑换），右侧为插件设置（数学公式等） */}
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <div style={{ flex: '0 0 320px' }}>
+                {userInfo ? (
+                  <div style={{ padding: 12, borderRadius: 8, background: '#fafafa' }}>
+                    <UserPanel user={userInfo} onLogout={handleLogout} />
+                  </div>
+                ) : (
+                  <div style={{ padding: 12 }}>未登录</div>
+                )}
               </div>
-            )}
+              <div style={{ flex: '1 1 auto', minWidth: 300 }}>
+                <div style={{ padding: 12, borderRadius: 8, background: '#fff' }}>
+                  <SettingsPanel onClose={() => setShowSettings(false)} />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

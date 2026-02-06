@@ -124,10 +124,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             onChange={(e, data) =>
               handleChange('mathFormulaFont', data.value)
             }
-            placeholder="输入字体名称，如：宋体、微软雅黑、Times New Roman"
+            placeholder="建议使用 Cambria Math（Word 内置数学字体）"
           />
           <div style={{ fontSize: '11px', color: '#999' }}>
-            输入任意 Word 支持的字体名称。常用字体：宋体、黑体、微软雅黑、Times New Roman、Arial
+            默认使用 Word 的数学字体（Cambria Math）。如需更改可输入其它 Word 支持的字体。
           </div>
         </div>
 
