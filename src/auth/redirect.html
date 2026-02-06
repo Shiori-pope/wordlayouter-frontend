@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>登录中...</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            text-align: center;
+            color: white;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 400;
+        }
+        p {
+            margin: 10px 0 0;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h2 id="status">正在完成登录...</h2>
+        <p id="message">请稍候</p>
+    </div>
+    
+    <script>
+        /**
+         * 这个页面的唯一职责：
+         * 作为 MSAL popup 的重定向目标
+         * MSAL 会自动处理跨窗口通信和关闭
+         * 
+         * 重要：不要在这里创建新的 MSAL 实例！
+         * 主窗口的 MSAL 实例会通过 window.opener 检测到这个页面
+         */
+        
+        (function() {
+            console.log('[Redirect] Page loaded');
+            console.log('[Redirect] URL:', window.location.href);
+            console.log('[Redirect] Has opener:', !!window.opener);
+            
+            // 检查 URL 中是否有认证响应
+            var hasCode = window.location.href.indexOf('code=') > -1;
+            var hasError = window.location.href.indexOf('error=') > -1;
+            var hasHash = window.location.hash && window.location.hash.length > 1;
+            
+            console.log('[Redirect] Has code:', hasCode);
+            console.log('[Redirect] Has error:', hasError);
+            console.log('[Redirect] Has hash:', hasHash);
+            
+            if (hasCode || hasHash) {
+                document.getElementById('status').textContent = '登录成功';
+                document.getElementById('message').textContent = '正在返回应用...';
+            } else if (hasError) {
+                document.getElementById('status').textContent = '登录失败';
+                var errorDesc = new URLSearchParams(window.location.search).get('error_description');
+                document.getElementById('message').textContent = errorDesc || '请重试';
+            }
+            
+            // MSAL popup 机制说明：
+            // 1. 主窗口调用 loginPopup() 时，MSAL 会在 localStorage 中存储请求状态
+            // 2. popup 窗口重定向到这里后，MSAL 通过 window.opener 检测到主窗口
+            // 3. MSAL 使用 BroadcastChannel 或 postMessage 通知主窗口
+            // 4. 主窗口的 loginPopup() Promise 解析
+            // 5. popup 窗口自动关闭
+            
+            // 如果 5 秒后还没关闭，提示用户
+            setTimeout(function() {
+                if (!window.closed) {
+                    document.getElementById('message').textContent = '如果窗口没有自动关闭，请手动关闭';
+                }
+            }, 5000);
+        })();
+    </script>
+</body>
+</html>

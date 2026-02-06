@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <title>Microsoft 登录</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script src="https://alcdn.msauth.net/browser/2.30.0/js/msal-browser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-sizing: border-box;
+        }
+        .container {
+            text-align: center;
+            color: white;
+            max-width: 400px;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h2 { margin: 0; font-size: 18px; font-weight: 400; }
+        p { margin: 10px 0 0; font-size: 14px; opacity: 0.8; }
+        .hidden { display: none; }
+        .error { color: #ffcdd2; }
+        .btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .btn:hover { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <h2 id="status">正在初始化...</h2>
+        <p id="message">请稍候</p>
+        <button class="btn hidden" id="retryBtn" onclick="startLogin()">重试登录</button>
+    </div>
+
+    <script>
+        /**
+         * Office Add-in SSO Fallback Dialog
+         * 基于官方推荐的 fallback 方案
+         * 
+         * 流程：
+         * 1. 初始化 MSAL
+         * 2. 尝试静默获取 token
+         * 3. 如果需要交互，则在此对话框内完成登录
+         * 4. 获取 token 后通过 messageParent 发送给主窗口
+         */
+        
+        var msalConfig = {
+            auth: {
+                clientId: 'aa584c91-54b8-4109-a3ad-635b43cf5478',
+                authority: 'https://login.microsoftonline.com/2cd5468c-1faa-4ddc-96ee-1f4a51a21c86',
+                // 修正：支持 GitHub Pages 子目录路径
+                redirectUri: window.location.href.split('?')[0]
+            },
+            cache: {
+                cacheLocation: 'localStorage',
+                storeAuthStateInCookie: true
+            }
+        };
+        
+        var loginRequest = {
+            scopes: [
+                'api://shiori-pope.github.io/aa584c91-54b8-4109-a3ad-635b43cf5478/access_as_user',
+                'openid',
+                'profile',
+                'email'
+            ]
+        };
+        
+        var msalInstance = null;
+        
+        function updateUI(status, message, showRetry) {
+            document.getElementById('status').textContent = status;
+            document.getElementById('message').textContent = message;
+            document.getElementById('retryBtn').classList.toggle('hidden', !showRetry);
+            document.getElementById('spinner').classList.toggle('hidden', showRetry);
+        }
+        
+        function sendResult(success, data) {
+            Office.onReady(function() {
+                var message = JSON.stringify(Object.assign({ success: success }, data));
+                console.log('[Fallback] Sending result:', message);
+                Office.context.ui.messageParent(message);
+            });
+        }
+        
+        async function handleResponse() {
+            try {
+                // 处理重定向响应
+                var response = await msalInstance.handleRedirectPromise();
+                if (response) {
+                    console.log('[Fallback] Got token from redirect');
+                    updateUI('登录成功', '正在返回应用...', false);
+                    sendResult(true, { accessToken: response.accessToken });
+                    return true;
+                }
+            } catch (error) {
+                console.error('[Fallback] handleRedirectPromise error:', error);
+            }
+            return false;
+        }
+        
+        async function tryGetTokenSilently() {
+            try {
+                var accounts = msalInstance.getAllAccounts();
+                if (accounts.length > 0) {
+                    console.log('[Fallback] Found account, trying silent');
+                    var response = await msalInstance.acquireTokenSilent({
+                        scopes: loginRequest.scopes,
+                        account: accounts[0]
+                    });
+                    console.log('[Fallback] Silent token acquired');
+                    return response.accessToken;
+                }
+            } catch (error) {
+                console.log('[Fallback] Silent failed:', error.errorCode || error.message);
+            }
+            return null;
+        }
+        
+        async function startLogin() {
+            updateUI('正在登录...', '请在弹出窗口中完成登录', false);
+            
+            try {
+                // 使用 redirect 模式，因为这个页面本身就是对话框
+                // popup 在 Office Dialog 内部不可靠
+                await msalInstance.loginRedirect(loginRequest);
+            } catch (error) {
+                console.error('[Fallback] Login error:', error);
+                updateUI('登录失败', error.message || '请重试', true);
+            }
+        }
+        
+        async function initialize() {
+            try {
+                console.log('[Fallback] Initializing MSAL...');
+                updateUI('正在初始化...', '请稍候', false);
+                
+                msalInstance = new msal.PublicClientApplication(msalConfig);
+                await msalInstance.initialize();
+                console.log('[Fallback] MSAL initialized');
+                
+                // 检查是否是从 redirect 返回
+                if (await handleResponse()) {
+                    return;
+                }
+                
+                // 尝试静默获取
+                updateUI('正在验证登录状态...', '请稍候', false);
+                var token = await tryGetTokenSilently();
+                if (token) {
+                    updateUI('登录成功', '正在返回应用...', false);
+                    sendResult(true, { accessToken: token });
+                    return;
+                }
+                
+                // 需要登录
+                console.log('[Fallback] Need to login, starting redirect...');
+                await startLogin();
+                
+            } catch (error) {
+                console.error('[Fallback] Init error:', error);
+                updateUI('初始化失败', error.message || '请重试', true);
+            }
+        }
+        
+        // 等待 Office.js 加载后初始化
+        Office.onReady(function() {
+            console.log('[Fallback] Office ready');
+            initialize();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- 添加 Content-Security-Policy 以确信允许加载 MSAL -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://appsforoffice.microsoft.com https://alcdn.msauth.net; connect-src 'self' https:;">
+    <title>认证诊断</title>
+    <!-- 必须引用 Office.js 才能在 Word 中运行 -->
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <!-- MSAL 已通过 Webpack 打包进 diagnostic.js，不再需要外部 CDN -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status.ok { background: #4caf50; color: white; }
+        .status.error { background: #f44336; color: white; }
+        .status.warning { background: #ff9800; color: white; }
+        .code {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover { background: #1976D2; }
+        .copy-btn {
+            background: #4caf50;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Office Add-in 认证诊断工具</h1>
+    
+    <div class="section">
+        <h2>📍 当前环境</h2>
+        <table>
+            <tr>
+                <th>项目</th>
+                <th>值</th>
+            </tr>
+            <tr>
+                <td>当前 URL</td>
+                <td id="current-url"></td>
+            </tr>
+            <tr>
+                <td>Origin</td>
+                <td id="origin"></td>
+            </tr>
+            <tr>
+                <td>Protocol</td>
+                <td id="protocol"></td>
+            </tr>
+            <tr>
+                <td>Host</td>
+                <td id="host"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>🔐 MSAL 配置</h2>
+        <div>
+            <button class="copy-btn" onclick="copyConfig()">📋 复制配置</button>
+        </div>
+        <div class="code" id="msal-config"></div>
+    </div>
+
+    <div class="section">
+        <h2>🏢 Office 环境</h2>
+        <table id="office-info"></table>
+    </div>
+
+    <div class="section">
+        <h2>✅ 必需的 Azure AD Redirect URIs</h2>
+        <p>请确保在 Azure Portal 的应用注册中添加以下所有 Redirect URIs（类型：单页应用程序 SPA）:</p>
+        <div class="code" id="redirect-uris"></div>
+        <button class="copy-btn" onclick="copyRedirectURIs()">📋 复制所有 URIs</button>
+    </div>
+
+    <div class="section">
+        <h2>🧪 测试操作</h2>
+        <button onclick="testNAA()">测试 NAA 支持</button>
+        <button onclick="testMSAL()">测试 MSAL 初始化</button>
+        <button onclick="checkLocalStorage()">检查本地存储</button>
+        <div id="test-results" class="code" style="margin-top: 20px; display: none;"></div>
+    </div>
+
+    <script>
+        // 检查 MSAL 是否加载成功
+        if (window.msalLoadError || typeof msal === 'undefined') {
+            const errorMsg = '❌ 严重错误: msal 库未加载。这可能是因为网络被阻断或服务器 CSP 策略限制了 https://alcdn.msauth.net';
+            console.error(errorMsg);
+            const warningDiv = document.createElement('div');
+            warningDiv.className = 'section';
+            warningDiv.style.border = '2px solid #f44336';
+            warningDiv.style.backgroundColor = '#ffebee';
+            warningDiv.innerHTML = `<h3>⚠️ MSAL 加载失败</h3><p>${errorMsg}</p><p>请检查浏览器控制台 (Console) 获取详细错误信息。</p>`;
+            document.body.insertBefore(warningDiv, document.body.firstChild);
+        }
+
+        // 显示环境信息
+        document.getElementById('current-url').textContent = window.location.href;
+        document.getElementById('origin').textContent = window.location.origin;
+        document.getElementById('protocol').textContent = window.location.protocol;
+        document.getElementById('host').textContent = window.location.host;
+
+        // MSAL 配置
+        const msalConfig = {
+            auth: {
+                clientId: 'aa584c91-54b8-4109-a3ad-635b43cf5478',
+                authority: 'https://login.microsoftonline.com/2cd5468c-1faa-4ddc-96ee-1f4a51a21c86',
+                redirectUri: new URL('redirect.html', window.location.href).href,
+                supportsNestedAppAuth: true
+            },
+            cache: {
+                cacheLocation: 'localStorage'
+            }
+        };
+
+        document.getElementById('msal-config').textContent = JSON.stringify(msalConfig, null, 2);
+
+        // Redirect URIs
+        const baseUrl = window.location.origin;
+        const redirectURIs = [
+            `${baseUrl}/redirect.html`,
+            `${baseUrl}/auth.html`,
+            `${baseUrl}/dialog.html`,
+            `${baseUrl}/fallbackAuth.html`,
+            `brk-multihub://${window.location.host}`,
+            `brk-multihub://${window.location.host}/redirect.html`
+        ];
+
+        document.getElementById('redirect-uris').textContent = redirectURIs.join('\n');
+
+        // Office 信息
+        function checkOfficeInfo() {
+            const officeTable = document.getElementById('office-info');
+            
+            // 如果 Office 对象不存在，直接输出错误
+            if (typeof Office === 'undefined') {
+                const results = [
+                    { name: 'Office 对象', value: '❌ 不存在 (office.js 未加载)' },
+                    { name: 'Office.context', value: '❌ 不存在' },
+                    { name: 'NAA 支持', value: '❌ 无法检测' },
+                    { name: '运行环境', value: '浏览器 (非 Office)' }
+                ];
+                renderTable(results);
+                return;
+            }
+
+            // 必须等待 Office 初始化完成
+            Office.onReady((info) => {
+                console.log('Office ready:', info);
+                
+                const hasContext = Office.context ? '✅ 存在' : '❌ 不存在 (异常)';
+                let naaSupported = '❌ 不支持';
+                let hostInfo = '未知';
+                
+                if (info.host) {
+                    hostInfo = `${info.host} (${info.platform})`;
+                }
+
+                try {
+                    if (Office.context && Office.context.requirements) {
+                        if (Office.context.requirements.isSetSupported('NestedAppAuth', '1.1')) {
+                            naaSupported = '✅ 支持';
+                        }
+                    }
+                } catch (e) {
+                    naaSupported = `❌ 检测出错: ${e.message}`;
+                }
+
+                const results = [
+                    { name: 'Office 对象', value: '✅ 存在' },
+                    { name: 'Office.context', value: hasContext },
+                    { name: 'NAA 支持', value: naaSupported },
+                    { name: '运行环境', value: hostInfo }
+                ];
+                renderTable(results);
+            });
+        }
+
+        function renderTable(data) {
+            const table = document.getElementById('office-info');
+            table.innerHTML = ''; // 清空
+            data.forEach(item => {
+                const row = table.insertRow();
+                row.insertCell(0).textContent = item.name;
+                row.insertCell(1).textContent = item.value;
+            });
+        }
+
+        checkOfficeInfo();
+
+        // 工具函数
+        function copyConfig() {
+            navigator.clipboard.writeText(JSON.stringify(msalConfig, null, 2));
+            alert('配置已复制到剪贴板');
+        }
+
+        function copyRedirectURIs() {
+            navigator.clipboard.writeText(redirectURIs.join('\n'));
+            alert('Redirect URIs 已复制到剪贴板');
+        }
+
+        async function testNAA() {
+            const results = document.getElementById('test-results');
+            results.style.display = 'block';
+            results.textContent = '测试中...\n';
+
+            try {
+                if (typeof Office === 'undefined') {
+                    results.textContent += '❌ Office 对象不存在\n';
+                    return;
+                }
+
+                await new Promise(resolve => Office.onReady(resolve));
+                
+                const naaSupported = Office.context.requirements.isSetSupported('NestedAppAuth', '1.1');
+                results.textContent += `NAA 支持: ${naaSupported ? '✅ 是' : '❌ 否'}\n`;
+
+                if (Office.auth) {
+                    results.textContent += '✅ Office.auth 可用\n';
+                    try {
+                        const authContext = await Office.auth.getAuthContext();
+                        results.textContent += `Login Hint: ${authContext.userPrincipalName || '无'}\n`;
+                    } catch (e) {
+                        results.textContent += `❌ 获取 auth context 失败: ${e.message}\n`;
+                    }
+                } else {
+                    results.textContent += '❌ Office.auth 不可用\n';
+                }
+            } catch (error) {
+                results.textContent += `❌ 错误: ${error.message}\n`;
+            }
+        }
+
+        async function testMSAL() {
+            const results = document.getElementById('test-results');
+            results.style.display = 'block';
+            results.textContent = '测试 MSAL...\n';
+
+            try {
+                // 检查通过 script 标签加载的全局 msal 对象
+                if (typeof msal === 'undefined') {
+                    throw new Error('无法加载 MSAL 库 (全局变量 msal 不存在)');
+                }
+                
+                // 注意：UMD 版本下，createNestablePublicClientApplication 直接在 msal 对象下
+                const msalModule = msal;
+                results.textContent += '✅ MSAL 库加载成功 (v3.26.1)\n';
+
+                if (msalModule.createNestablePublicClientApplication) {
+                    results.textContent += '✅ createNestablePublicClientApplication 可用\n';
+                    try {
+                        const pca = await msalModule.createNestablePublicClientApplication(msalConfig);
+                        results.textContent += '✅ NAA MSAL 实例创建成功\n';
+                    } catch (e) {
+                        results.textContent += `❌ 实例创建失败: ${e.message}\n`;
+                    }
+                } else {
+                    results.textContent += '❌ createNestablePublicClientApplication 不可用\n';
+                }
+            } catch (error) {
+                results.textContent += `❌ MSAL 测试失败: ${error.message}\n`;
+                results.textContent += `详细信息: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}\n`;
+            }
+        }
+
+        function checkLocalStorage() {
+            const results = document.getElementById('test-results');
+            results.style.display = 'block';
+            results.textContent = 'LocalStorage 内容:\n\n';
+
+            let count = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('msal') || key.includes('wordai')) {
+                    results.textContent += `${key}:\n${localStorage.getItem(key)}\n\n`;
+                    count++;
+                }
+            }
+
+            if (count === 0) {
+                results.textContent += '(没有找到相关的缓存数据)\n';
+            }
+        }
+    </script>
+</body>
+</html>
