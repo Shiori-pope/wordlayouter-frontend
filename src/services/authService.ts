@@ -409,8 +409,8 @@ export async function verifyAuth(): Promise<UserInfo | null> {
     if (!token) {
       return null;
     }
-
-    const response = await apiRequest('/auth/verify');
+    // 后端没有单独的 /auth/verify 路由，使用受保护的 /user/info 来验证 token
+    const response = await apiRequest('/user/info');
     
     if (response.success) {
       return response.user;
