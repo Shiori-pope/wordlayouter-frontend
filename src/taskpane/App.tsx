@@ -693,6 +693,12 @@ const App: React.FC = () => {
                 onError={setFileError}
               />
             </div>
+            {/* 恢复用户面板（含卡密兑换）到设置页 */}
+            {userInfo && (
+              <div style={{ marginTop: 16 }}>
+                <UserPanel user={userInfo} onLogout={handleLogout} />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -838,15 +844,28 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* File Strip 已移到设置中 */}
-        {/* Input Area: 精简主界面，管理控件在设置中 */}
+        {/* File Strip - 显示已上传的附件 */}
+        <FileStrip files={uploadedFiles} onRemove={handleRemoveFile} />
+
+        {/* Controls Row - 保留在主界面，位于输入区上方 */}
         <div className={styles.inputArea}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <TextBold24Regular style={{ width: 18, height: 18, color: '#666' }} />
-            <DocumentAdd24Regular style={{ width: 18, height: 18, color: '#666' }} />
-            <DocumentAdd24Regular style={{ width: 18, height: 18, color: '#666' }} />
+          <div className={styles.controlsRow}>
+            <ModelSelector onModelChange={handleModelChange} />
+            <LayoutPresetPanel onPresetChange={handlePresetChange} />
+            <FileUploadButton
+              currentModel={activeModel}
+              onFilesChange={setUploadedFiles}
+              uploadedFiles={uploadedFiles}
+              onError={setFileError}
+            />
+            {fileError && (
+              <Text style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px' }}>
+                {fileError}
+              </Text>
+            )}
           </div>
 
+          {/* Input Row */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <textarea
               ref={inputRef}
