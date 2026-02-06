@@ -448,8 +448,35 @@ export async function autoLogin(): Promise<AuthResponse> {
       return { success: true, user: existingUser };
     }
 
-    // 不自动调用 SSO，避免 Office 插件环境中的 redirect 超时
-    // 用户需要手动点击登录按钮
+    // 尝试使用 MSAL 的缓存进行静默 SSO（仅在有缓存账户时）以换取后端 token
+    try {
+      const instance = getMsalInstance();
+      const accounts = instance.getAllAccounts();
+      if (accounts.length > 0) {
+        try {
+          const silentResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
+          const idToken = silentResponse.idToken;
+          if (idToken) {
+            // 向后端换取应用级 token
+            const apiResponse = await apiRequest('/auth/sso', {
+              method: 'POST',
+              body: JSON.stringify({ idToken }),
+            });
+            if (apiResponse.success) {
+              storeToken(apiResponse.token);
+              console.log('🔄 静默 SSO 成功，已获取后端 token');
+              return { success: true, user: apiResponse.user, token: apiResponse.token };
+            }
+          }
+        } catch (err) {
+          console.info('静默 SSO 失败，不进行交互式登录:', err);
+        }
+      }
+    } catch (err) {
+      console.warn('尝试静默 SSO 时出错:', err);
+    }
+
+    // 不自动调用交互式 SSO，以免在插件中触发弹窗/重定向问题
     console.log('⚠️ 无现有认证，需要用户手动登录');
     return { success: false, error: '需要登录' };
   } catch (error) {
