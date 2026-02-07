@@ -675,7 +675,12 @@ const App: React.FC = () => {
                         </div>
                         {/* 合并显示：左侧用户信息（含卡密兑换），右侧为插件设置（数学公式等） */}
                         <div>
-                            <SettingsPanel onClose={() => setShowSettings(false)} user={userInfo} onLogout={handleLogout} />
+                            <SettingsPanel
+                                onClose={() => setShowSettings(false)}
+                                user={userInfo}
+                                onLogout={handleLogout}
+                                onUserUpdate={setUserInfo}
+                            />
                         </div>
                     </div>
                 </div>

@@ -102,9 +102,10 @@ interface SettingsPanelProps {
     onClose?: () => void;
     user?: UserInfo;
     onLogout?: () => void;
+    onUserUpdate?: (user: UserInfo) => void; // 新增：用于更新用户信息
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout, onUserUpdate }) => {
     const styles = useStyles();
     const [settings, setSettings] = useState<PluginSettings | null>(null);
     const [loading, setLoading] = useState(true);
@@ -166,8 +167,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }
             if (result.success) {
                 setRedeemMessage(`成功兑换 ${result.tokensAdded || 0} Token!`);
                 setCardCode('');
-                // 尝试刷新 user info if provided
-                try { await authService.refreshUserInfo(); } catch (_) { }
+                // 刷新用户信息
+                try {
+                    const updatedUser = await authService.getUserInfo();
+                    if (onUserUpdate) {
+                        onUserUpdate(updatedUser);
+                    }
+                } catch (err) {
+                    console.error('Failed to refresh user info:', err);
+                }
             } else {
                 setRedeemMessage(result.error || '兑换失败');
             }
@@ -182,7 +190,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, user, onLogout }
     const handleRefreshInfo = async () => {
         setRefreshLoading(true);
         try {
-            await authService.refreshUserInfo();
+            const updatedUser = await authService.getUserInfo();
+            if (onUserUpdate) {
+                onUserUpdate(updatedUser);
+            }
         } catch (err) {
             console.error('Refresh Error:', err);
         } finally {
