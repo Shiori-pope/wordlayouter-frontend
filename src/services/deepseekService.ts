@@ -2,7 +2,7 @@ import axios from 'axios';
 import { LayoutPreset, DEFAULT_CLASS_RULES } from '../types/layoutPreset';
 import { ModelConfig, getApiKey } from '../types/modelConfig';
 import { ParsedFile, getImageDataUrl } from '../utils/fileParser';
-import { isAuthenticated } from './authService';
+import { isAuthenticated, getStoredToken } from './authService';
 import systemPromptTemplate from '../prompts/system.txt';
 import generateStylesPromptTemplate from '../prompts/generateStyles.txt';
 
@@ -170,21 +170,48 @@ export async function callDeepSeek(
         description: '',
     };
 
+    const messages = buildMessages(
+        conversationHistory,
+        userMessage,
+        context,
+        layoutPreset,
+        uploadedFiles,
+        currentModel
+    );
+
+    // 如果用户已认证，优先使用后端代理
+    if (isAuthenticated()) {
+        try {
+            const response = await axios.post(
+                `${API_BASE}/api/chat/chat`,
+                {
+                    model: currentModel.id,
+                    messages: messages,
+                    temperature: 0.7,
+                    maxTokens: currentModel.maxTokens,
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getStoredToken()}`,
+                    },
+                }
+            );
+
+            if (response.data.choices?.[0]?.message?.content) {
+                return response.data.choices[0].message.content;
+            }
+        } catch (error: any) {
+            console.warn('Backend proxy failed, falling back to direct API:', error.message);
+        }
+    }
+
     const apiKey = getModelApiKey(currentModel);
     if (!apiKey) {
-        throw new Error('请先配置 API Key');
+        throw new Error('请先配置 API Key 或登录账户');
     }
 
     try {
-        const messages = buildMessages(
-            conversationHistory,
-            userMessage,
-            context,
-            layoutPreset,
-            uploadedFiles,
-            currentModel
-        );
-
         if (currentModel.provider === 'anthropic') {
             return await callAnthropicApi(currentModel, apiKey, messages);
         }
@@ -320,7 +347,7 @@ export async function* streamDeepSeek(
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`,
+                    'Authorization': `Bearer ${getStoredToken()}`,
                 },
                 body: JSON.stringify({
                     model: currentModel.id,
@@ -570,9 +597,40 @@ export async function generateStylesFromDescription(
     formatDescription: string,
     model: ModelConfig
 ): Promise<GeneratedStyles> {
+    // 如果用户已认证，优先使用后端代理
+    if (isAuthenticated()) {
+        try {
+            const response = await axios.post(
+                `${API_BASE}/api/chat/chat`,
+                {
+                    model: model.id,
+                    messages: [
+                        { role: 'system', content: generateStylesPromptTemplate },
+                        { role: 'user', content: formatDescription },
+                    ],
+                    temperature: 0.3,
+                    maxTokens: model.maxTokens,
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getStoredToken()}`,
+                    },
+                }
+            );
+
+            if (response.data.choices?.[0]?.message?.content) {
+                const responseText = response.data.choices[0].message.content;
+                return parseGeneratedStyles(responseText);
+            }
+        } catch (error: any) {
+            console.warn('Backend proxy failed for style generation, falling back to direct API:', error.message);
+        }
+    }
+
     const apiKey = getModelApiKey(model);
     if (!apiKey) {
-        throw new Error('请先配置 API Key');
+        throw new Error('请先配置 API Key 或登录账户');
     }
 
     const messages: Message[] = [
@@ -587,12 +645,9 @@ export async function generateStylesFromDescription(
     ];
 
     try {
-        let responseText: string;
-
-        if (model.provider === 'anthropic') {
-            responseText = await callAnthropicApi(model, apiKey, messages);
-        } else {
-            const response = await axios.post<DeepSeekResponse>(
+        const responseText = (model.provider === 'anthropic')
+            ? await callAnthropicApi(model, apiKey, messages)
+            : (await axios.post<DeepSeekResponse>(
                 model.apiUrl,
                 {
                     model: model.id,
@@ -606,24 +661,9 @@ export async function generateStylesFromDescription(
                         'Content-Type': 'application/json',
                     },
                 }
-            );
-            responseText = response.data.choices[0].message.content;
-        }
+            )).data.choices[0].message.content;
 
-        // 解析 JSON 响应
-        const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
-        const jsonStr = jsonMatch ? jsonMatch[1] : responseText;
-
-        try {
-            const parsed = JSON.parse(jsonStr.trim());
-            return {
-                cssStyles: parsed.cssStyles || '',
-                classRules: parsed.classRules || '',
-            };
-        } catch (parseError) {
-            console.error('Failed to parse AI response:', responseText);
-            throw new Error('AI 返回的格式无法解析，请重试');
-        }
+        return parseGeneratedStyles(responseText);
     } catch (error) {
         console.error('Generate styles error:', error);
         if (axios.isAxiosError(error)) {
@@ -634,5 +674,25 @@ export async function generateStylesFromDescription(
             }
         }
         throw error;
+    }
+}
+
+/**
+ * 提取解析样式的逻辑以便复用
+ */
+function parseGeneratedStyles(responseText: string): GeneratedStyles {
+    // 解析 JSON 响应
+    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+    const jsonStr = jsonMatch ? jsonMatch[1] : responseText;
+
+    try {
+        const parsed = JSON.parse(jsonStr.trim());
+        return {
+            cssStyles: parsed.cssStyles || '',
+            classRules: parsed.classRules || '',
+        };
+    } catch (parseError) {
+        console.error('Failed to parse AI response:', responseText);
+        throw new Error('AI 返回的格式无法解析，请重试');
     }
 }
