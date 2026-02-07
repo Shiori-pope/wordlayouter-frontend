@@ -1058,21 +1058,35 @@ export function containsMathFormula(html: string): boolean {
 }
 
 
+
 /**
  * 检测文本是否为 HTML 格式
  */
 export function isHtmlFormat(text: string): boolean {
+    const trimmed = text.trim();
+    // 检查是否是被代码块包裹的 HTML
+    if (trimmed.startsWith('```html') || (trimmed.startsWith('```') && /<[a-z][\s\S]*>/i.test(trimmed))) {
+        return true;
+    }
     // 检测常见的 HTML 标签
-    return /<(h[1-6]|p|div|span|b|i|u|strong|em|ul|ol|li|table|br)\b[^>]*>/i.test(text);
+    return /<(h[1-6]|p|div|span|b|i|u|strong|em|ul|ol|li|table|br)\b[^>]*>/i.test(trimmed);
 }
 
 /**
- * 清理 HTML，移除不支持的标签
+ * 清理 HTML，移除不支持的标签，并尝试提取被 Markdown 包裹的内容
  */
 export function sanitizeHtml(html: string): string {
-    // Word 支持的基本 HTML 标签
+    // 1. 尝试提取被 ```html ... ``` 包裹的内容
+    let result = html.trim();
+    const match = result.match(/^```html\s*([\s\S]*?)\s*```$/i) ||
+        result.match(/^```\s*([\s\S]*?)\s*```$/i);
+    if (match) {
+        result = match[1].trim();
+    }
+
+    // 2. Word 支持的基本 HTML 标签
     // 移除 script、style 等不安全标签
-    let clean = html
+    let clean = result
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
         .replace(/<link\b[^>]*>/gi, '')
