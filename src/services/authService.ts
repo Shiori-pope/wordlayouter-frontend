@@ -161,9 +161,14 @@ function clearAuth(): void {
  * API 请求封装
  */
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+    // 为 GET 请求添加时间戳防止缓存
+    const url = options.method === 'GET' || !options.method
+        ? `${API_BASE}${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`
+        : `${API_BASE}${endpoint}`;
+
     const token = getStoredToken();
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
