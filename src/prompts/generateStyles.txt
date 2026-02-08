@@ -46,9 +46,10 @@
    - mso-line-height-rule: exactly
 
 7. 没有特殊说明的情况下，ul, ol, li标签视为正文的一部分，它应该和正文样式完全一致:
-   - ul,ol,li标签无特殊说明默认与正文p标签共用一个css
+   - ul,ol标签无特殊说明默认与正文p标签共用一个css
+   - li标签css默认留空
 
-8. 如果用户没有说明，则 padding 和 margin 属性只允许用在table, th, td标签上。
+8. 如果用户没有说明，padding 和 margin 属性只允许用在table, th, td标签上。
 ## classRules 要求
 
 1. 只列出 class 名称和用途
@@ -64,7 +65,7 @@
 
 ```json
 {
-  "cssStyles": "p.title {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 22pt;    \n font-weight: bold;    \n text-align: center;    \n text-indent: 0;    \n margin: 24pt 0;    \n}\np,ul,ol,li {    \n font-family: 宋体, SimSun, serif;    \n font-size: 12pt;    \n text-indent: 2em;    \n mso-char-indent-count: 2;    \n line-height: 150%;    \n mso-line-height-rule: exactly;    \n margin: 6pt 0;    \n}\np.heading1 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 16pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 1;    \n margin: 12pt 0;    \n}\np.heading2 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 14pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 2;    \n margin: 10pt 0;    \n}\np.heading3 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 12pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 3;    \n margin: 8pt 0;    \n}\npre.code {    \n font-family: Consolas, \"Courier New\", monospace;    \n font-size: 10pt;    \n background-color: #f5f5f5;    \n padding: 12px;    \n border: 1px solid #cccccc;    \n white-space: pre-wrap;    \n margin: 8pt 0;    \n}\np.quote {    \n border-left: 4px solid #667eea;    \n padding-left: 16px;    \n margin: 12px 0;    \n color: #555;    \n text-indent: 0;    \n}\ntable {    border-collapse: collapse;    width: 100%;    margin: 8pt 0;}\nth,td {    border: 1px solid #999;    padding: 8px;    font-family: 宋体;    font-size: 12pt;}\nth {    background-color: #f0f0f0;    font-weight: bold;}",
+  "cssStyles": "p.title {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 22pt;    \n font-weight: bold;    \n text-align: center;    \n text-indent: 0;\n}\np,ul,ol,li {    \n font-family: 宋体, SimSun, serif;    \n font-size: 12pt;    \n text-indent: 2em;    \n mso-char-indent-count: 2;    \n line-height: 150%;    \n mso-line-height-rule: exactly;    \n}\np.heading1 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 16pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 1;    \n}\np.heading2 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 14pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 2;    \n}\np.heading3 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 12pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 3;    \n}\npre.code {    \n font-family: Consolas, \"Courier New\", monospace;    \n font-size: 10pt;    \n background-color: #f5f5f5;    \n border: 1px solid #cccccc;    \n white-space: pre-wrap;    \n}\np.quote {    \n border-left: 4px solid #667eea;    \n \n color: #555;    \n text-indent: 0;    \n}\ntable {    border-collapse: collapse;    width: 100%;    margin: 8pt 0;}\nth,td {    border: 1px solid #999;    padding: 8px;    font-family: 宋体;    font-size: 12pt;}\nth {    background-color: #f0f0f0;    font-weight: bold;}",
   "classRules": "文档标题：<p class=\"title\">标题</p>\n一级标题（大纲第一层）：<p class=\"heading1\">标题</p>\n二级标题（大纲第二层）：<p class=\"heading2\">标题</p>\n三级标题（大纲第三层）：<p class=\"heading3\">标题</p>\n正文：<p>内容</p>\n代码：<pre class=\"code\">代码</pre>\n引用：<p class=\"quote\">引用</p>\n表格：使用 table, tr, th, td 标签\n列表：使用 ul, ol, li 标签\n禁止使用 h1~h6 标签\n优先使用 class，非必要不使用内联 style"
 }
 ```
