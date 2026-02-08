@@ -969,20 +969,7 @@ function preprocessMathFormulas(html: string): {
  * 预定义的样式映射：CSS class -> 内联样式
  * 用于将 CSS class 转换为内联样式
  */
-const CLASS_STYLE_MAP: Record<string, string> = {
-    'p.title': 'font-family: 黑体, SimHei, sans-serif; font-size: 22pt; font-weight: bold; text-align: center; margin: 24pt 0; text-indent: 0;',
-    'p.heading1': 'font-family: 黑体, SimHei, sans-serif; font-size: 16pt; font-weight: bold; text-align: left; margin: 16pt 0; text-indent: 0; mso-outline-level: 1;',
-    'p.heading2': 'font-family: 黑体, SimHei, sans-serif; font-size: 14pt; font-weight: bold; text-align: left; margin: 12pt 0; text-indent: 0; mso-outline-level: 2;',
-    'p.heading3': 'font-family: 黑体, SimHei, sans-serif; font-size: 12pt; font-weight: bold; text-align: left; margin: 10pt 0; text-indent: 0; mso-outline-level: 3;',
-    'p': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 150%; text-indent: 2em; mso-char-indent-count: 2; margin: 6pt 0;',
-    'pre.code': 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; background-color: #f5f5f5; padding: 12px; border: 1px solid #cccccc; white-space: pre-wrap; margin: 8pt 0;',
-    'p.quote': 'border-left: 4px solid #667eea; padding-left: 16px; margin: 12px 0; color: #555; text-indent: 0;',
-    'table': 'border-collapse: collapse; width: 100%; margin: 8pt 0;',
-    'th, td': 'border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt;',
-    'th': 'background-color: #f0f0f0; font-weight: bold;',
-    'ul, ol': 'margin: 8pt 0; padding-left: 24pt;',
-    'li': 'margin: 4pt 0; font-family: 宋体; font-size: 12pt;',
-};
+import { CLASS_STYLE_MAP } from '../config/layoutConfig';
 
 /**
  * 将 CSS class 转换为内联样式
@@ -1024,7 +1011,11 @@ function applyInlineStyles(html: string, cssStyles?: string): string {
     // 2. 添加默认的 CLASS_STYLE_MAP 样式作为备用
     // 使用 selector { style } 格式，支持复杂的选择器如 p.title
     const defaultStyles = Object.entries(CLASS_STYLE_MAP)
-        .map(([selector, style]) => `${selector} { ${style} }`)
+        .map(([selector, style]) => {
+            // 将 'p' 选择器映射为 'p.body-text' 以便与带 class 的段落隔离
+            const finalSelector = selector === 'p' ? 'p.body-text' : selector;
+            return `${finalSelector} { ${style} }`;
+        })
         .join('\n');
 
     if (/<style[^>]*>/i.test(htmlWithStyles)) {
@@ -1036,16 +1027,17 @@ function applyInlineStyles(html: string, cssStyles?: string): string {
         htmlWithStyles = `<style>${defaultStyles}</style>${htmlWithStyles}`;
     }
 
-    // 3. 临时转换 CSS：将所有 <style> 标签内的 "p {" 替换为 "p.body-text {"
-    // 这样可以让 p 选择器只匹配无 class 的段落（已被标记为 body-text）
+    // 3. 临时转换 CSS：将所有 <style> 标签内的 "p" 选择器替换为 "p.body-text"
+    // 这样可以让针对正文的样式只匹配无 class 的段落（已被标记为 body-text）
+    // 改进的正则：匹配独立的 p 单词，确保它不是类名的一部分，且处理逗号分隔
     htmlWithStyles = htmlWithStyles.replace(
         /(<style[^>]*>)([\s\S]*?)(<\/style>)/gi,
         (match, openTag, cssContent, closeTag) => {
-            // 替换独立的 p 选择器（不是 p.xxx 或其他复合选择器）
-            // 使用负向前瞻确保后面不是 . 或其他字符
+            // 匹配作为独立选择器的 p (例如 "p {", "p, li {", "div > p {", "p:first-child {")
+            // 替换为 "p.body-text"
             const transformedCss = cssContent.replace(
-                /\bp\s*(?=\{)/g,
-                'p.body-text '
+                /(^|[\s,>])p([\s,#{:\[])/g,
+                '$1p.body-text$2'
             );
             return openTag + transformedCss + closeTag;
         }

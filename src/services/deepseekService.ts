@@ -3,6 +3,7 @@ import { LayoutPreset, DEFAULT_CLASS_RULES } from '../types/layoutPreset';
 import { ModelConfig, getApiKey } from '../types/modelConfig';
 import { ParsedFile, getImageDataUrl } from '../utils/fileParser';
 import { isAuthenticated, getStoredToken } from './authService';
+import { DEFAULT_CSS_STYLES } from '../config/layoutConfig';
 import systemPromptTemplate from '../prompts/system.txt';
 import generateStylesPromptTemplate from '../prompts/generateStyles.txt';
 
@@ -605,7 +606,10 @@ export async function generateStylesFromDescription(
                 {
                     model: model.id,
                     messages: [
-                        { role: 'system', content: generateStylesPromptTemplate },
+                        {
+                            role: 'system',
+                            content: generateStylesPromptTemplate
+                        },
                         { role: 'user', content: formatDescription },
                     ],
                     temperature: 0.3,
