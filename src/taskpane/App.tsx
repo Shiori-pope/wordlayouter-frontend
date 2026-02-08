@@ -503,16 +503,24 @@ const App: React.FC = () => {
                 hasMath = containsMathFormula(response);
 
                 const previewLines: string[] = [];
-                const h1Match = response.match(/<h1[^>]*>(.*?)<\/h1>/i);
-                const h2Match = response.match(/<h2[^>]*>(.*?)<\/h2>/i);
+                const titleMatch = response.match(/<p[^>]+class=["']title["'][^>]*>(.*?)<\/p>/i);
+                const h1Match = response.match(/<p[^>]+class=["']heading1["'][^>]*>(.*?)<\/p>/i);
+                const h2Match = response.match(/<p[^>]+class=["']heading2["'][^>]*>(.*?)<\/p>/i);
                 const pMatch = response.match(/<p[^>]*>(.*?)<\/p>/i);
 
-                if (h1Match) previewLines.push(h1Match[1].substring(0, 30));
-                if (h2Match) previewLines.push(h2Match[1].substring(0, 30));
-                if (pMatch) {
+                if (titleMatch) previewLines.push(titleMatch[1].replace(/<[^>]*>/g, '').substring(0, 30));
+                else if (h1Match) previewLines.push(h1Match[1].replace(/<[^>]*>/g, '').substring(0, 30));
+                else if (h2Match) previewLines.push(h2Match[1].replace(/<[^>]*>/g, '').substring(0, 30));
+
+                if (pMatch && !titleMatch && !h1Match && !h2Match) {
                     const text = pMatch[1].replace(/<[^>]*>/g, '').substring(0, 40);
                     previewLines.push(text + '...');
+                } else if (pMatch && previewLines.length > 0) {
+                    // 已经有标题了，再加一点点正文预览
+                    const text = pMatch[1].replace(/<[^>]*>/g, '').substring(0, 40);
+                    if (text) previewLines.push(text + '...');
                 }
+
                 if (hasMath) previewLines.push('包含数学公式');
 
                 displayContent = previewLines.length > 0

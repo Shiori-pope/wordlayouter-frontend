@@ -970,13 +970,18 @@ function preprocessMathFormulas(html: string): {
  * 用于将 CSS class 转换为内联样式
  */
 const CLASS_STYLE_MAP: Record<string, string> = {
-    'title': 'font-family: 黑体, SimHei, sans-serif; font-size: 22pt; font-weight: bold; text-align: center; margin: 24pt 0;',
-    'content': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 1.5; text-indent: 2em; margin: 6pt 0;',
-    'heading1': 'font-family: 黑体, SimHei, sans-serif; font-size: 16pt; font-weight: bold; margin: 16pt 0;',
-    'heading2': 'font-family: 黑体, SimHei, sans-serif; font-size: 14pt; font-weight: bold; margin: 12pt 0;',
-    'heading3': 'font-family: 黑体, SimHei, sans-serif; font-size: 12pt; font-weight: bold; margin: 10pt 0;',
-    'code': 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; background-color: #f5f5f5; padding: 12px; border: 1px solid #cccccc; white-space: pre-wrap; margin: 8pt 0;',
-    'quote': 'border-left: 4px solid #667eea; padding-left: 16px; margin: 12px 0; color: #555;',
+    'p.title': 'font-family: 黑体, SimHei, sans-serif; font-size: 22pt; font-weight: bold; text-align: center; margin: 24pt 0; text-indent: 0;',
+    'p.heading1': 'font-family: 黑体, SimHei, sans-serif; font-size: 16pt; font-weight: bold; text-align: left; margin: 16pt 0; text-indent: 0; mso-outline-level: 1;',
+    'p.heading2': 'font-family: 黑体, SimHei, sans-serif; font-size: 14pt; font-weight: bold; text-align: left; margin: 12pt 0; text-indent: 0; mso-outline-level: 2;',
+    'p.heading3': 'font-family: 黑体, SimHei, sans-serif; font-size: 12pt; font-weight: bold; text-align: left; margin: 10pt 0; text-indent: 0; mso-outline-level: 3;',
+    'p': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 150%; text-indent: 2em; mso-char-indent-count: 2; margin: 6pt 0;',
+    'pre.code': 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; background-color: #f5f5f5; padding: 12px; border: 1px solid #cccccc; white-space: pre-wrap; margin: 8pt 0;',
+    'p.quote': 'border-left: 4px solid #667eea; padding-left: 16px; margin: 12px 0; color: #555; text-indent: 0;',
+    'table': 'border-collapse: collapse; width: 100%; margin: 8pt 0;',
+    'th, td': 'border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt;',
+    'th': 'background-color: #f0f0f0; font-weight: bold;',
+    'ul, ol': 'margin: 8pt 0; padding-left: 24pt;',
+    'li': 'margin: 4pt 0; font-family: 宋体; font-size: 12pt;',
 };
 
 /**
@@ -1003,8 +1008,9 @@ function applyInlineStyles(html: string, cssStyles?: string): string {
     }
 
     // 2. 添加默认的 CLASS_STYLE_MAP 样式作为备用
+    // 使用 selector { style } 格式，支持复杂的选择器如 p.title
     const defaultStyles = Object.entries(CLASS_STYLE_MAP)
-        .map(([cls, style]) => `.${cls} { ${style} }`)
+        .map(([selector, style]) => `${selector} { ${style} }`)
         .join('\n');
 
     if (/<style[^>]*>/i.test(htmlWithStyles)) {

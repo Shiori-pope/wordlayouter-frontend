@@ -14,15 +14,15 @@
  */
 
 export interface LayoutPreset {
-  id: string;
-  name: string;
-  // 自然语言描述的排版要求
-  formatDescription: string;
-  // AI 生成的 CSS 样式（完整的 <style> 内容）
-  cssStyles?: string;
-  // AI 生成的 class 使用规则（给 AI 的指令）
-  classRules?: string;
-  isBuiltIn: boolean;
+    id: string;
+    name: string;
+    // 自然语言描述的排版要求
+    formatDescription: string;
+    // AI 生成的 CSS 样式（完整的 <style> 内容）
+    cssStyles?: string;
+    // AI 生成的 class 使用规则（给 AI 的指令）
+    classRules?: string;
+    isBuiltIn: boolean;
 }
 
 // 默认 CSS 样式模板
@@ -37,7 +37,7 @@ p.title {
 }
 
 /* 正文样式 */
-p.content {
+p {
   font-family: 宋体, SimSun, serif;
   font-size: 12pt;
   line-height: 1.5;
@@ -134,7 +134,7 @@ export const DEFAULT_CLASS_RULES = `
    - 二级标题（大纲第二层，如"1.1 背景"）：<p class="heading2">标题</p>
    - 三级标题（大纲第三层）：<p class="heading3">标题</p>
 
-3. 正文：<p class="content">内容</p>
+3. 正文：<p>内容</p>
 
 4. 代码块：<pre class="code">代码</pre>
 
@@ -149,23 +149,24 @@ export const DEFAULT_CLASS_RULES = `
 
 // 内置预设 - 精简为2个，每个都可编辑
 export const BUILT_IN_PRESETS: LayoutPreset[] = [
-  {
-    id: 'academic',
-    name: '学术论文',
-    isBuiltIn: true,
-    formatDescription: `正文使用宋体小四号字（12pt），首行缩进2字符，1.5倍行距。
+    {
+        id: 'academic',
+        name: '学术论文',
+        isBuiltIn: true,
+        formatDescription: `正文使用宋体小四号字（12pt），首行缩进2字符，1.5倍行距。
 一级标题黑体三号居中，二级标题黑体四号左对齐，三级标题黑体小四号左对齐。
 段落间距段前0.5行段后0.5行。
 参考文献使用 [1] [2] 格式标注。`,
-    cssStyles: `
+        cssStyles: `
 p.title {
   font-family: 黑体, SimHei, sans-serif;
   font-size: 22pt;
   font-weight: bold;
   text-align: center;
+  text-indent: 0;
   margin: 24pt 0;
 }
-p.content {
+p {
   font-family: 宋体, SimSun, serif;
   font-size: 12pt;
   line-height: 150%;
@@ -222,35 +223,36 @@ th { background-color: #f0f0f0; font-weight: bold; }
 ul, ol { margin: 8pt 0; padding-left: 24pt; }
 li { margin: 4pt 0; font-family: 宋体; font-size: 12pt; }
 `,
-    classRules: `生成 HTML 时遵循以下规则：
+        classRules: `生成 HTML 时遵循以下规则：
 - 文档标题：<p class="title">标题</p>
 - 一级标题（大纲第一层）：<p class="heading1">标题</p>
 - 二级标题（大纲第二层）：<p class="heading2">标题</p>
 - 三级标题（大纲第三层）：<p class="heading3">标题</p>
-- 正文：<p class="content">内容</p>
+- 正文：<p>内容</p>
 - 代码：<pre class="code">代码</pre>
 - 引用：<p class="quote">引用</p>
 - 禁止使用 h1~h6 标签
 - 优先使用 class，非必要不使用内联 style`,
-  },
-  {
-    id: 'business',
-    name: '商务报告',
-    isBuiltIn: true,
-    formatDescription: `正文使用微软雅黑11pt，不缩进，段间距8px。
+    },
+    {
+        id: 'business',
+        name: '商务报告',
+        isBuiltIn: true,
+        formatDescription: `正文使用微软雅黑11pt，不缩进，段间距8px。
 一级标题微软雅黑16pt加粗，蓝色(#0066cc)，左对齐。
 二级标题微软雅黑14pt加粗，黑色，左对齐。
 重点内容使用蓝色强调，数据使用表格呈现。`,
-    cssStyles: `
+        cssStyles: `
 p.title {
   font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
   font-size: 22pt;
   font-weight: bold;
   text-align: center;
+  text-indent: 0;
   color: #0066cc;
   margin: 24pt 0;
 }
-p.content {
+p {
   font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
   font-size: 11pt;
   line-height: 160%;
@@ -307,110 +309,110 @@ th { background-color: #0066cc; color: white; font-weight: bold; }
 ul, ol { margin: 8pt 0; padding-left: 24pt; }
 li { margin: 4pt 0; font-family: 微软雅黑; font-size: 11pt; }
 `,
-    classRules: `生成 HTML 时遵循以下规则：
+        classRules: `生成 HTML 时遵循以下规则：
 - 文档标题：<p class="title">标题</p>
 - 一级标题（大纲第一层）：<p class="heading1">标题</p>
 - 二级标题（大纲第二层）：<p class="heading2">标题</p>
 - 三级标题（大纲第三层）：<p class="heading3">标题</p>
-- 正文：<p class="content">内容</p>
+- 正文：<p>内容</p>
 - 代码：<pre class="code">代码</pre>
 - 引用：<p class="quote">引用</p>
 - 重点强调：<span class="highlight">重点</span>
 - 禁止使用 h1~h6 标签
 - 优先使用 class，非必要不使用内联 style`,
-  },
+    },
 ];
 
 // localStorage keys
 export const STORAGE_KEYS = {
-  CUSTOM_PRESETS: 'word-ai-layout-presets',
-  ACTIVE_PRESET: 'word-ai-active-preset',
+    CUSTOM_PRESETS: 'word-ai-layout-presets',
+    ACTIVE_PRESET: 'word-ai-active-preset',
 };
 
 /**
  * 获取所有预设（内置 + 自定义）
  */
 export function getAllPresets(): LayoutPreset[] {
-  const customPresets = getCustomPresets();
-  // 合并内置预设（可能被用户编辑过）
-  const builtInIds = BUILT_IN_PRESETS.map(p => p.id);
-  const editedBuiltIns = customPresets.filter(p => builtInIds.includes(p.id));
-  const pureCustom = customPresets.filter(p => !builtInIds.includes(p.id));
+    const customPresets = getCustomPresets();
+    // 合并内置预设（可能被用户编辑过）
+    const builtInIds = BUILT_IN_PRESETS.map(p => p.id);
+    const editedBuiltIns = customPresets.filter(p => builtInIds.includes(p.id));
+    const pureCustom = customPresets.filter(p => !builtInIds.includes(p.id));
 
-  // 使用编辑过的内置预设替换原始的
-  const finalBuiltIns = BUILT_IN_PRESETS.map(original => {
-    const edited = editedBuiltIns.find(e => e.id === original.id);
-    return edited || original;
-  });
+    // 使用编辑过的内置预设替换原始的
+    const finalBuiltIns = BUILT_IN_PRESETS.map(original => {
+        const edited = editedBuiltIns.find(e => e.id === original.id);
+        return edited || original;
+    });
 
-  return [...finalBuiltIns, ...pureCustom];
+    return [...finalBuiltIns, ...pureCustom];
 }
 
 /**
  * 获取自定义预设（包括编辑过的内置预设）
  */
 export function getCustomPresets(): LayoutPreset[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEYS.CUSTOM_PRESETS);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.CUSTOM_PRESETS);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
 }
 
 /**
  * 保存预设（新建或编辑）
  */
 export function savePreset(preset: LayoutPreset): void {
-  const presets = getCustomPresets();
-  const existingIndex = presets.findIndex(p => p.id === preset.id);
-  if (existingIndex >= 0) {
-    presets[existingIndex] = preset;
-  } else {
-    presets.push(preset);
-  }
-  localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(presets));
+    const presets = getCustomPresets();
+    const existingIndex = presets.findIndex(p => p.id === preset.id);
+    if (existingIndex >= 0) {
+        presets[existingIndex] = preset;
+    } else {
+        presets.push(preset);
+    }
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(presets));
 }
 
 /**
  * 删除自定义预设（内置预设不能删除，只能重置）
  */
 export function deletePreset(presetId: string): void {
-  const isBuiltIn = BUILT_IN_PRESETS.some(p => p.id === presetId);
-  if (isBuiltIn) {
-    // 重置为默认值：从存储中移除编辑版本
-    const presets = getCustomPresets().filter(p => p.id !== presetId);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(presets));
-  } else {
-    // 完全删除自定义预设
-    const presets = getCustomPresets().filter(p => p.id !== presetId);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(presets));
-  }
+    const isBuiltIn = BUILT_IN_PRESETS.some(p => p.id === presetId);
+    if (isBuiltIn) {
+        // 重置为默认值：从存储中移除编辑版本
+        const presets = getCustomPresets().filter(p => p.id !== presetId);
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(presets));
+    } else {
+        // 完全删除自定义预设
+        const presets = getCustomPresets().filter(p => p.id !== presetId);
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(presets));
+    }
 }
 
 /**
  * 获取当前激活的预设 ID
  */
 export function getActivePresetId(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.ACTIVE_PRESET);
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_PRESET);
 }
 
 /**
  * 设置当前激活的预设
  */
 export function setActivePresetId(presetId: string | null): void {
-  if (presetId) {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_PRESET, presetId);
-  } else {
-    localStorage.removeItem(STORAGE_KEYS.ACTIVE_PRESET);
-  }
+    if (presetId) {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_PRESET, presetId);
+    } else {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_PRESET);
+    }
 }
 
 /**
  * 获取当前激活的预设
  */
 export function getActivePreset(): LayoutPreset | null {
-  const activeId = getActivePresetId();
-  if (!activeId) return null;
-  return getAllPresets().find(p => p.id === activeId) || null;
+    const activeId = getActivePresetId();
+    if (!activeId) return null;
+    return getAllPresets().find(p => p.id === activeId) || null;
 }
