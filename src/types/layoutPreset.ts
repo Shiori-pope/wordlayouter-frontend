@@ -50,7 +50,7 @@ p.heading1 {
   font-family: 黑体, SimHei, sans-serif;
   font-size: 16pt;
   font-weight: bold;
-  text-align: center;
+  text-align: left;
   margin: 16pt 0;
   mso-outline-level: 1;
 }
@@ -153,10 +153,9 @@ export const BUILT_IN_PRESETS: LayoutPreset[] = [
         id: 'academic',
         name: '学术论文',
         isBuiltIn: true,
-        formatDescription: `正文使用宋体小四号字（12pt），首行缩进2字符，1.5倍行距。
-一级标题黑体三号居中，二级标题黑体四号左对齐，三级标题黑体小四号左对齐。
-段落间距段前0.5行段后0.5行。
-参考文献使用 [1] [2] 格式标注。`,
+        formatDescription: `正文使用宋体小四号字，首行缩进2字符，1.5倍行距。
+一级标题黑体三号左对齐，二级标题黑体四号左对齐，三级标题黑体小四号左对齐。
+段落间距段前0.5行段后0.5行。`,
         cssStyles: `
 p.title {
   font-family: 黑体, SimHei, sans-serif;
@@ -169,20 +168,20 @@ p.title {
 p {
   font-family: 宋体, SimSun, serif;
   font-size: 12pt;
-  line-height: 150%;
-  mso-line-height-rule: exactly;
   text-indent: 2em;
   mso-char-indent-count: 2;
+  line-height: 150%;
+  mso-line-height-rule: exactly;
   margin: 6pt 0;
 }
 p.heading1 {
   font-family: 黑体, SimHei, sans-serif;
   font-size: 16pt;
   font-weight: bold;
-  text-align: center;
+  text-align: left;
   text-indent: 0;
-  margin: 12pt 0;
   mso-outline-level: 1;
+  margin: 12pt 0;
 }
 p.heading2 {
   font-family: 黑体, SimHei, sans-serif;
@@ -190,8 +189,8 @@ p.heading2 {
   font-weight: bold;
   text-align: left;
   text-indent: 0;
-  margin: 10pt 0;
   mso-outline-level: 2;
+  margin: 10pt 0;
 }
 p.heading3 {
   font-family: 黑体, SimHei, sans-serif;
@@ -199,8 +198,8 @@ p.heading3 {
   font-weight: bold;
   text-align: left;
   text-indent: 0;
-  margin: 8pt 0;
   mso-outline-level: 3;
+  margin: 8pt 0;
 }
 pre.code {
   font-family: Consolas, "Courier New", monospace;
@@ -216,6 +215,7 @@ p.quote {
   padding-left: 16px;
   margin: 12px 0;
   color: #555;
+  text-indent: 0;
 }
 table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
 th, td { border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt; }
@@ -231,6 +231,8 @@ li { margin: 4pt 0; font-family: 宋体; font-size: 12pt; }
 - 正文：<p>内容</p>
 - 代码：<pre class="code">代码</pre>
 - 引用：<p class="quote">引用</p>
+- 表格：使用 table, tr, th, td 标签
+- 列表：使用 ul, ol, li 标签
 - 禁止使用 h1~h6 标签
 - 优先使用 class，非必要不使用内联 style`,
     },

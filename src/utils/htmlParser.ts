@@ -991,8 +991,22 @@ const CLASS_STYLE_MAP: Record<string, string> = {
  * @param cssStyles 可选的排版预设 CSS
  */
 function applyInlineStyles(html: string, cssStyles?: string): string {
+    // 0. 预处理 HTML：为所有无 class 的 <p> 标签添加临时 class="body-text"
+    // 这样可以避免 p 选择器污染其他带 class 的 p 标签（如 title、heading 等）
+    let preprocessedHtml = html.replace(/<p(\s+[^>]*)?>/gi, (match, attrs) => {
+        // 如果已经有 class 属性，保持不变
+        if (attrs && /class\s*=/i.test(attrs)) {
+            return match;
+        }
+        // 否则添加临时 body-text class
+        if (attrs) {
+            return `<p${attrs} class="body-text">`;
+        }
+        return '<p class="body-text">';
+    });
+
     // 1. 如果有排版预设 CSS，注入到 <style> 标签
-    let htmlWithStyles = html;
+    let htmlWithStyles = preprocessedHtml;
     if (cssStyles) {
         // 检查是否已有 <style> 标签
         if (/<style[^>]*>/i.test(htmlWithStyles)) {
@@ -1022,7 +1036,22 @@ function applyInlineStyles(html: string, cssStyles?: string): string {
         htmlWithStyles = `<style>${defaultStyles}</style>${htmlWithStyles}`;
     }
 
-    // 3. 使用 juice 内联化 CSS
+    // 3. 临时转换 CSS：将所有 <style> 标签内的 "p {" 替换为 "p.body-text {"
+    // 这样可以让 p 选择器只匹配无 class 的段落（已被标记为 body-text）
+    htmlWithStyles = htmlWithStyles.replace(
+        /(<style[^>]*>)([\s\S]*?)(<\/style>)/gi,
+        (match, openTag, cssContent, closeTag) => {
+            // 替换独立的 p 选择器（不是 p.xxx 或其他复合选择器）
+            // 使用负向前瞻确保后面不是 . 或其他字符
+            const transformedCss = cssContent.replace(
+                /\bp\s*(?=\{)/g,
+                'p.body-text '
+            );
+            return openTag + transformedCss + closeTag;
+        }
+    );
+
+    // 4. 使用 juice 内联化 CSS
     let inlineHtml = juice(htmlWithStyles, {
         applyStyleTags: true,
         removeStyleTags: true,
@@ -1034,11 +1063,11 @@ function applyInlineStyles(html: string, cssStyles?: string): string {
         applyAttributesTableElements: true
     });
 
-    // 4. 使用正则删除 class 属性（juice 内联后不再需要）
+    // 5. 使用正则删除 class 属性（juice 内联后不再需要，包括临时添加的 body-text）
     inlineHtml = inlineHtml.replace(/\s+class="[^"]*"/gi, '');
     inlineHtml = inlineHtml.replace(/\s+class='[^']*'/gi, '');
 
-    // 5. 清理 HTML 结构标签，只保留 body 内容
+    // 6. 清理 HTML 结构标签，只保留 body 内容
     inlineHtml = inlineHtml
         .replace(/<!DOCTYPE[^>]*>/gi, '')
         .replace(/<html[^>]*>/gi, '')
