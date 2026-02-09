@@ -56,7 +56,7 @@ export const DEFAULT_CLASS_RULES = `
 
 export const BUILT_IN_PRESETS: LayoutPreset[] = [
     {
-        id: 'academic',
+        id: 'high-built-in-1',
         name: '高阶预设版式1',
         isBuiltIn: true,
         formatDescription: `文章标题使用宋体二号字居中
