@@ -278,9 +278,6 @@ word-ai-assistant/
 │   │   ├── htmlParser.ts         # HTML → OOXML 转换
 │   │   ├── wordUtils.ts          # Word API 封装
 │   │   └── formatUtils.ts        # 格式处理工具
-│   └── 📁 dialog/                # 对话框组件
-│       ├── Popup.tsx             # 快速输入弹窗
-│       └── popup.html            # 弹窗模板
 ├── 📁 assets/                    # 静态资源
 │   └── icon-*.png                # 插件图标
 ├── 📁 docs/                      # 文档

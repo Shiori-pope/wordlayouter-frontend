@@ -22,7 +22,6 @@ module.exports = (env, argv) => {
         entry: {
             taskpane: './src/taskpane/index.tsx',
             commands: './src/commands/commands.ts',
-            popup: './src/dialog/index.tsx',
             redirect: './src/auth/redirect.ts',
             diagnostic: './src/auth/diagnostic.ts',
             landing: './src/landing/index.tsx'
@@ -100,11 +99,6 @@ module.exports = (env, argv) => {
                 template: './src/commands/commands.html',
                 filename: 'commands.html',
                 chunks: ['commands']
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/dialog/popup.html',
-                filename: 'popup.html',
-                chunks: ['popup']
             }),
             new HtmlWebpackPlugin({
                 template: './src/auth/redirect.html',
