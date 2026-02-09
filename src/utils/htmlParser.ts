@@ -35,6 +35,7 @@ const TEX_SYMBOLS: Record<string, string> = {
     'leftrightarrow': '↔', 'Leftrightarrow': '⇔', 'updownarrow': '↕',
     'mapsto': '↦', 'longrightarrow': '⟶', 'longleftarrow': '⟵',
     'hookrightarrow': '↪', 'hookleftarrow': '↩',
+    'rightleftharpoons': '⇌', 'leftrightharpoons': '⇋', 'rightleftarrows': '⇄', 'leftrightarrows': '⇆',
     // 大型运算符
     'sum': '∑', 'prod': '∏', 'coprod': '∐', 'int': '∫', 'oint': '∮',
     'iint': '∬', 'iiint': '∭', 'bigcup': '⋃', 'bigcap': '⋂',
@@ -116,6 +117,67 @@ export function texToUnicode(tex: string): string {
         return `→[${processedText}]`;
     });
 
+    // 处理 xleftarrow{上面的文本} -> ←[上面的文本]
+    result = result.replace(/\\xleftarrow\{([^}]*)\}/g, (_, text) => {
+        let processedText = text;
+        for (const [cmd, symbol] of Object.entries(TEX_SYMBOLS)) {
+            processedText = processedText.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), symbol);
+        }
+        processedText = processedText.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
+        return `←[${processedText}]`;
+    });
+
+    // 处理 binom{n}{k} -> (n k)
+    result = result.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, (_, n, k) => {
+        return `(${n.trim()} ${k.trim()})`;
+    });
+
+    // 处理 overset{上}{下} -> 下[上]
+    result = result.replace(/\\overset\{([^}]*)\}\{([^}]*)\}/g, (_, top, bottom) => {
+        let processedTop = top;
+        for (const [cmd, symbol] of Object.entries(TEX_SYMBOLS)) {
+            processedTop = processedTop.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), symbol);
+        }
+        processedTop = processedTop.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
+        return `${bottom}[${processedTop}]`;
+    });
+
+    // 处理 underset{下}{上} -> 上[下]
+    result = result.replace(/\\underset\{([^}]*)\}\{([^}]*)\}/g, (_, bottom, top) => {
+        let processedBottom = bottom;
+        for (const [cmd, symbol] of Object.entries(TEX_SYMBOLS)) {
+            processedBottom = processedBottom.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), symbol);
+        }
+        processedBottom = processedBottom.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
+        return `${top}[${processedBottom}]`;
+    });
+
+    // 处理 stackrel{上}{下} -> 下[上]
+    result = result.replace(/\\stackrel\{([^}]*)\}\{([^}]*)\}/g, (_, top, bottom) => {
+        let processedTop = top;
+        for (const [cmd, symbol] of Object.entries(TEX_SYMBOLS)) {
+            processedTop = processedTop.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), symbol);
+        }
+        processedTop = processedTop.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
+        return `${bottom}[${processedTop}]`;
+    });
+
+    // 处理 overbrace{内容}^{上标} -> ⏞(内容)[上标]
+    result = result.replace(/\\overbrace\{([^}]*)\}(\^\{([^}]*)\})?/g, (_, content, __, sup) => {
+        if (sup) {
+            return `⏞(${content})[${sup}]`;
+        }
+        return `⏞(${content})`;
+    });
+
+    // 处理 underbrace{内容}_{下标} -> ⏟(内容)[下标]
+    result = result.replace(/\\underbrace\{([^}]*)\}(_\{([^}]*)\})?/g, (_, content, __, sub) => {
+        if (sub) {
+            return `⏟(${content})[${sub}]`;
+        }
+        return `⏟(${content})`;
+    });
+
     // 处理 operatorname
     result = result.replace(/\\operatorname\{([^}]*)\}/g, '$1');
 
@@ -168,6 +230,16 @@ export function texToUnicode(tex: string): string {
             return row.replace(/&/g, ', ');
         });
         return `{${formattedRows.join('; ')}}`;
+    });
+
+    // 处理 array 环境
+    result = result.replace(/\\begin\{array\}\{[^}]*\}([\s\S]*?)\\end\{array\}/g, (_, content) => {
+        const rows = content.split('\\\\').map((r: string) => r.trim()).filter((r: string) => r);
+        const formattedRows = rows.map((row: string) => {
+            const cells = row.split('&').map((c: string) => c.trim());
+            return cells.join('  ');
+        });
+        return `[${formattedRows.join('; ')}]`;
     });
 
     // 处理根号 \sqrt{x} -> √(x)
@@ -419,7 +491,21 @@ class LatexToOmml {
             case 'check':
                 return this.parseAccent('\u030c');  // combining caron
             case 'xrightarrow':
-                return this.parseXArrow();
+                return this.parseXArrow('→');
+            case 'xleftarrow':
+                return this.parseXArrow('←');
+            case 'binom':
+                return this.parseBinom();
+            case 'overset':
+                return this.parseOverset();
+            case 'underset':
+                return this.parseUnderset();
+            case 'stackrel':
+                return this.parseStackrel();
+            case 'overbrace':
+                return this.parseOverbrace();
+            case 'underbrace':
+                return this.parseUnderbrace();
             case 'begin':
                 return this.parseEnvironment();
             case 'end':
@@ -616,15 +702,76 @@ class LatexToOmml {
         return `<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>${escapeXml(text)}</m:t></m:r>`;
     }
 
-    private parseXArrow(): string {
-        // xrightarrow{上面的文本} - 解析上面的文本
+    private parseXArrow(arrow: string): string {
+        // xrightarrow/xleftarrow{上面的文本} - 解析上面的文本
         const topText = this.parseGroup();
         // 提取纯文本内容
         const topTextClean = topText.replace(/<[^>]+>/g, '');
 
         // 创建带上标文本的箭头
         // 使用 sSup 结构来表示箭头带上标
-        return `<m:sSup><m:e><m:r><m:t>→</m:t></m:r></m:e><m:sup><m:r><m:t>${escapeXml(topTextClean)}</m:t></m:r></m:sup></m:sSup>`;
+        return `<m:sSup><m:e><m:r><m:t>${escapeXml(arrow)}</m:t></m:r></m:e><m:sup><m:r><m:t>${escapeXml(topTextClean)}</m:t></m:r></m:sup></m:sSup>`;
+    }
+
+    private parseBinom(): string {
+        // \binom{n}{k} - 二项式系数
+        const n = this.parseGroup();
+        const k = this.parseGroup();
+        // 使用分数结构但不显示分数线，外面加括号
+        return `<m:d><m:dPr><m:begChr m:val="("/><m:endChr m:val=")"/><m:sepChr m:val=""/><m:grow m:val="1"/></m:dPr><m:e><m:f><m:fPr><m:type m:val="noBar"/></m:fPr><m:num>${n}</m:num><m:den>${k}</m:den></m:f></m:e></m:d>`;
+    }
+
+    private parseOverset(): string {
+        // \overset{上}{下} - 上标
+        const top = this.parseGroup();
+        const bottom = this.parseGroup();
+        return `<m:limUpp><m:e>${bottom}</m:e><m:lim>${top}</m:lim></m:limUpp>`;
+    }
+
+    private parseUnderset(): string {
+        // \underset{下}{上} - 下标
+        const bottom = this.parseGroup();
+        const top = this.parseGroup();
+        return `<m:limLow><m:e>${top}</m:e><m:lim>${bottom}</m:lim></m:limLow>`;
+    }
+
+    private parseStackrel(): string {
+        // \stackrel{上}{下} - 堆叠，类似overset
+        const top = this.parseGroup();
+        const bottom = this.parseGroup();
+        return `<m:limUpp><m:e>${bottom}</m:e><m:lim>${top}</m:lim></m:limUpp>`;
+    }
+
+    private parseOverbrace(): string {
+        // \overbrace{内容}^{上标}
+        const content = this.parseGroup();
+        // 检查是否有上标
+        this.skipWhitespace();
+        if (this.pos < this.tex.length && this.tex[this.pos] === '^') {
+            this.pos++;
+            const sup = this.parseGroup();
+            return `<m:limUpp><m:e><m:groupChr><m:groupChrPr><m:chr m:val="⏞"/><m:pos m:val="top"/></m:groupChrPr><m:e>${content}</m:e></m:groupChr></m:e><m:lim>${sup}</m:lim></m:limUpp>`;
+        }
+        return `<m:groupChr><m:groupChrPr><m:chr m:val="⏞"/><m:pos m:val="top"/></m:groupChrPr><m:e>${content}</m:e></m:groupChr>`;
+    }
+
+    private parseUnderbrace(): string {
+        // \underbrace{内容}_{下标}
+        const content = this.parseGroup();
+        // 检查是否有下标
+        this.skipWhitespace();
+        if (this.pos < this.tex.length && this.tex[this.pos] === '_') {
+            this.pos++;
+            const sub = this.parseGroup();
+            return `<m:limLow><m:e><m:groupChr><m:groupChrPr><m:chr m:val="⏟"/><m:pos m:val="bot"/></m:groupChrPr><m:e>${content}</m:e></m:groupChr></m:e><m:lim>${sub}</m:lim></m:limLow>`;
+        }
+        return `<m:groupChr><m:groupChrPr><m:chr m:val="⏟"/><m:pos m:val="bot"/></m:groupChrPr><m:e>${content}</m:e></m:groupChr>`;
+    }
+
+    private skipWhitespace(): void {
+        while (this.pos < this.tex.length && /\s/.test(this.tex[this.pos])) {
+            this.pos++;
+        }
     }
 
     private skipGroup(): void {
@@ -661,6 +808,8 @@ class LatexToOmml {
                 return this.parseMatrix('‖', '‖');
             case 'cases':
                 return this.parseCases();
+            case 'array':
+                return this.parseArray();
             default:
                 return '';
         }
@@ -777,6 +926,48 @@ class LatexToOmml {
         matrixOmml += '</m:m>';
 
         return `<m:d><m:dPr><m:begChr m:val="{"/><m:endChr m:val=""/></m:dPr><m:e>${matrixOmml}</m:e></m:d>`;
+    }
+
+    private parseArray(): string {
+        // 跳过列格式 {cc} 或 {lcr} 等
+        this.skipGroup();
+
+        // 找到 \end{array} 之前的内容
+        let content = '';
+
+        while (this.pos < this.tex.length) {
+            if (this.tex.slice(this.pos, this.pos + 4) === '\\end') {
+                break;
+            }
+            content += this.tex[this.pos];
+            this.pos++;
+        }
+
+        // 跳过 \end{array}
+        if (this.tex.slice(this.pos, this.pos + 4) === '\\end') {
+            this.pos += 4;
+            this.skipGroup();
+        }
+
+        // 解析数组内容，类似矩阵
+        const rows = content.split('\\\\').map(r => r.trim()).filter(r => r);
+
+        let matrixOmml = '<m:m><m:mPr></m:mPr>';
+
+        for (const row of rows) {
+            matrixOmml += '<m:mr>';
+            const cells = row.split('&').map(c => c.trim());
+            for (const cell of cells) {
+                const converter = new LatexToOmml();
+                const cellOmml = converter.convert(cell);
+                matrixOmml += `<m:e>${cellOmml}</m:e>`;
+            }
+            matrixOmml += '</m:mr>';
+        }
+
+        matrixOmml += '</m:m>';
+
+        return matrixOmml;
     }
 
     private parseGroup(): string {
