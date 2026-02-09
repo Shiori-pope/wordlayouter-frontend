@@ -51,7 +51,8 @@
 
 8. 表格（table,th,td），代码块（pre.code），引用（p.quote）是表性格式，有如下要求：
    - 仅允许对它们设置padding属性使其更为美观，不得对非表性格式设置padding和margin
-   - 表格table默认设置width:98%
+   - 表格table默认设置width:98%;
+   - 表格table默认设置居中：text-align:center; 该属性用途是让表格整体居中，但是副作用是会导致表格所有文本居中。如需让某些文本以其他方式排列，请设置td,th的text-align属性
 
 ## classRules 要求
 
@@ -59,7 +60,6 @@
 2. 不包含任何样式描述（字体、字号、颜色等）
 3. 明确区分文档标题（title）和章节标题（heading1/2/3）
 4. 用户输入的涉及内容的约束需要整合到classRules中
-5. 表格table设置align属性需要显式的写入classRules中，用户不指定默认居中
 
 ## 示例输入
 

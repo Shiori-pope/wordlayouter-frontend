@@ -15,7 +15,7 @@ export const CLASS_STYLE_MAP: Record<string, string> = {
     'p': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 150%; text-indent: 2em; mso-char-indent-count: 2;',
     'pre.code': 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; background-color: #f5f5f5; padding: 12px; border: 1px solid #cccccc; white-space: pre-wrap;',
     'p.quote': 'border-left: 4px solid #667eea; margin: 12px 0; color: #555; text-indent: 0;',
-    'table': 'border-collapse: collapse; width: 98%;',
+    'table': 'border-collapse: collapse; width: 98%; text-align: center;',
     'th, td': 'border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt;',
     'th': 'background-color: #f0f0f0; font-weight: bold;',
     'ul,ol,li': '',
@@ -118,6 +118,7 @@ p.quote {
 table {
     border-collapse: collapse;
     width: 98%;
+    text-align: center;
 }
 th, td {
     border: 1px solid #999;
