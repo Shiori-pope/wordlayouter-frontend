@@ -51,7 +51,7 @@
 
 8. 表格（table,th,td），代码块（pre.code），引用（p.quote）是表性格式，有如下要求：
    - 仅允许对它们设置padding属性使其更为美观，不得对非表性格式设置padding和margin
-   - 表格table默认设置width:98%;align:center;
+   - 表格table默认设置width:98%
 
 ## classRules 要求
 
@@ -59,6 +59,7 @@
 2. 不包含任何样式描述（字体、字号、颜色等）
 3. 明确区分文档标题（title）和章节标题（heading1/2/3）
 4. 用户输入的涉及内容的约束需要整合到classRules中
+5. 表格table设置align属性需要显式的写入classRules中，用户不指定默认居中
 
 ## 示例输入
 
@@ -68,8 +69,8 @@
 
 ```json
 {
-  "cssStyles": "p.title {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 22pt;    \n font-weight: bold;    \n text-align: center;    \n text-indent: 0;\n}\np {    \n font-family: 宋体, SimSun, serif;    \n font-size: 12pt;    \n text-indent: 2em;    \n mso-char-indent-count: 2;    \n line-height: 150%;    \n mso-line-height-rule: exactly;    \n}\np.heading1 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 16pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 1;    \n}\np.heading2 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 14pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 2;    \n}\np.heading3 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 12pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 3;    \n}\npre.code {    \n font-family: Consolas, \"Courier New\", monospace;    \n font-size: 10pt;    \n background-color: #f5f5f5;    \n border: 1px solid #cccccc;    \n white-space: pre-wrap;    \n}\np.quote {    \n border-left: 4px solid #667eea;    \n \n color: #555;    \n text-indent: 0;    \n}\ntable {align:center    border-collapse: collapse;    width: 98%;}\nth,td {    border: 1px solid #999;    padding: 8px;    font-family: 宋体;    font-size: 12pt;}\nth {    background-color: #f0f0f0;    font-weight: bold;} \nul,ol,li{}\np.withoutIndent {\n  font-family: 宋体, SimSun, serif;\n  font-size: 12pt;\n  line-height: 150%;\n  mso-line-height-rule: exactly;\n}",
-  "classRules": "文档标题：<p class=\"title\">标题</p>\n一级标题（大纲第一层）：<p class=\"heading1\">标题</p>\n二级标题（大纲第二层）：<p class=\"heading2\">标题</p>\n三级标题（大纲第三层）：<p class=\"heading3\">标题</p>\n正文：<p>内容</p>\n代码：<pre class=\"code\">代码</pre>\n引用：<p class=\"quote\">引用</p>\n表格：使用 table, tr, th, td 标签\n列表：使用 ul, ol, li 标签\n内容约束：\n 一级标题序号为中文汉字，一二三，序号到文本用顿号、连接；\n二级标题序号为阿拉伯数字，123，序号到文本用顿号、连接"
+  "cssStyles": "p.title {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 22pt;    \n font-weight: bold;    \n text-align: center;    \n text-indent: 0;\n}\np {    \n font-family: 宋体, SimSun, serif;    \n font-size: 12pt;    \n text-indent: 2em;    \n mso-char-indent-count: 2;    \n line-height: 150%;    \n mso-line-height-rule: exactly;    \n}\np.heading1 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 16pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 1;    \n}\np.heading2 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 14pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 2;    \n}\np.heading3 {    \n font-family: 黑体, SimHei, sans-serif;    \n font-size: 12pt;    \n font-weight: bold;    \n text-align: left;    \n text-indent: 0;    \n mso-outline-level: 3;    \n}\npre.code {    \n font-family: Consolas, \"Courier New\", monospace;    \n font-size: 10pt;    \n background-color: #f5f5f5;    \n border: 1px solid #cccccc;    \n white-space: pre-wrap;    \n}\np.quote {    \n border-left: 4px solid #667eea;    \n \n color: #555;    \n text-indent: 0;    \n}\ntable {border-collapse: collapse;    width: 98%;}\nth,td {    border: 1px solid #999;    padding: 8px;    font-family: 宋体;    font-size: 12pt;}\nth {    background-color: #f0f0f0;    font-weight: bold;} \nul,ol,li{}\np.withoutIndent {\n  font-family: 宋体, SimSun, serif;\n  font-size: 12pt;\n  line-height: 150%;\n  mso-line-height-rule: exactly;\n}",
+  "classRules": "文档标题：<p class=\"title\">标题</p>\n一级标题（大纲第一层）：<p class=\"heading1\">标题</p>\n二级标题（大纲第二层）：<p class=\"heading2\">标题</p>\n三级标题（大纲第三层）：<p class=\"heading3\">标题</p>\n正文：<p>内容</p>\n代码：<pre class=\"code\">代码</pre>\n引用：<p class=\"quote\">引用</p>\n表格：使用 table, tr, th, td 标签\n列表：使用 ul, ol, li 标签\n内容约束：\n 一级标题序号为中文汉字，一二三，序号到文本用顿号、连接；\n二级标题序号为阿拉伯数字，123，序号到文本用顿号、连接\n 表格table需要设置align='center'"
 }
 ```
 
