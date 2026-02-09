@@ -1096,7 +1096,7 @@ export function isHtmlFormat(text: string): boolean {
         return true;
     }
     // 检测常见的 HTML 标签
-    return /<(h[1-6]|p|div|span|b|i|u|strong|em|ul|ol|li|table|br)\b[^>]*>/i.test(trimmed);
+    return /<(h[1-6]|p|div|span|b|i|u|strong|em|ul|ol|li|table|br|pre)\b[^>]*>/i.test(trimmed);
 }
 
 /**

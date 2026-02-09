@@ -59,148 +59,90 @@ export const BUILT_IN_PRESETS: LayoutPreset[] = [
         id: 'academic',
         name: '学术论文',
         isBuiltIn: true,
-        formatDescription: `正文使用宋体小四号字，首行缩进2字符，1.5倍行距。
-一级标题黑体三号左对齐，二级标题黑体四号左对齐，三级标题黑体小四号左对齐。
-段落间距段前0.5行段后0.5行。`,
+        formatDescription: `文章标题使用宋体二号字居中
+正文使用宋体小四号字，首行缩进2字符，1.5倍行距。
+一级标题黑体三号左对齐，使用一二三、作为序号
+二级标题黑体四号左对齐，使用（一）（二）（三）、作为序号
+三级标题黑体小四号左对齐，使用123、作为序号`,
         cssStyles: `
 p.title {
-  font-family: 黑体, SimHei, sans-serif;
-  font-size: 22pt;
-  font-weight: bold;
-  text-align: center;
-  text-indent: 0;
+    font-family: 宋体, SimSun, serif;
+    font-size: 22pt;
+    text-align: center;
+    text-indent: 0;
 }
 p {
-  font-family: 宋体, SimSun, serif;
-  font-size: 12pt;
-  text-indent: 2em;
-  mso-char-indent-count: 2;
-  line-height: 150%;
-  mso-line-height-rule: exactly;
+    font-family: 宋体, SimSun, serif;
+    font-size: 12pt;
+    text-indent: 2em;
+    mso-char-indent-count: 2;
+    line-height: 150%;
+    mso-line-height-rule: exactly;
 }
 p.heading1 {
-  font-family: 黑体, SimHei, sans-serif;
-  font-size: 16pt;
-  font-weight: bold;
-  text-align: left;
-  text-indent: 0;
-  mso-outline-level: 1;
+    font-family: 黑体, SimHei, sans-serif;
+    font-size: 16pt;
+    font-weight: bold;
+    text-align: left;
+    text-indent: 0;
+    mso-outline-level: 1;
 }
 p.heading2 {
-  font-family: 黑体, SimHei, sans-serif;
-  font-size: 14pt;
-  font-weight: bold;
-  text-align: left;
-  text-indent: 0;
-  mso-outline-level: 2;
+    font-family: 黑体, SimHei, sans-serif;
+    font-size: 14pt;
+    font-weight: bold;
+    text-align: left;
+    text-indent: 0;
+    mso-outline-level: 2;
 }
 p.heading3 {
-  font-family: 黑体, SimHei, sans-serif;
-  font-size: 12pt;
-  font-weight: bold;
-  text-align: left;
-  text-indent: 0;
-  mso-outline-level: 3;
+    font-family: 黑体, SimHei, sans-serif;
+    font-size: 12pt;
+    font-weight: bold;
+    text-align: left;
+    text-indent: 0;
+    mso-outline-level: 3;
 }
 pre.code {
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 10pt;
-  background-color: #f5f5f5;
-  border: 1px solid #cccccc;
-  white-space: pre-wrap;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 10pt;
+    background-color: #f5f5f5;
+    border: 1px solid #cccccc;
+    white-space: pre-wrap;
 }
 p.quote {
-  border-left: 4px solid #667eea;
-  color: #555;
-  text-indent: 0;
+    border-left: 4px solid #667eea;
+    color: #555;
+    text-indent: 0;
 }
-table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
-th, td { border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt; }
-th { background-color: #f0f0f0; font-weight: bold; }
-ul, ol,li {}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8pt 0;
+}
+th, td {
+    border: 1px solid #999;
+    padding: 8px;
+    font-family: 宋体;
+    font-size: 12pt;
+}
+th {
+    background-color: #f0f0f0;
+    font-weight: bold;
+}
+ul, ol, li {}
 p.withoutIndent {
-  font-family: 宋体, SimSun, serif;
-  font-size: 12pt;
-  line-height: 150%;
-  mso-line-height-rule: exactly;
+    font-family: 宋体, SimSun, serif;
+    font-size: 12pt;
+    line-height: 150%;
+    mso-line-height-rule: exactly;
 }
 `,
-        classRules: DEFAULT_CLASS_RULES,
-    },
-    {
-        id: 'business',
-        name: '商务报告',
-        isBuiltIn: true,
-        formatDescription: `正文使用微软雅黑11pt，不缩进，段间距8px。
-一级标题微软雅黑16pt加粗，蓝色(#0066cc)，左对齐。
-二级标题微软雅黑14pt加粗，黑色，左对齐。
-重点内容使用蓝色强调，数据使用表格呈现。`,
-        cssStyles: `
-p.title {
-  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
-  font-size: 22pt;
-  font-weight: bold;
-  text-align: center;
-  text-indent: 0;
-  color: #0066cc;
-}
-p {
-  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
-  font-size: 11pt;
-  line-height: 160%;
-  mso-line-height-rule: exactly;
-}
-p.heading1 {
-  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
-  font-size: 16pt;
-  font-weight: bold;
-  color: #0066cc;
-  text-align: left;
-  text-indent: 0;
-  mso-outline-level: 1;
-}
-p.heading2 {
-  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
-  font-size: 14pt;
-  font-weight: bold;
-  text-align: left;
-  text-indent: 0;
-  mso-outline-level: 2;
-}
-p.heading3 {
-  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
-  font-size: 12pt;
-  font-weight: bold;
-  text-align: left;
-  text-indent: 0;
-  mso-outline-level: 3;
-}
-pre.code {
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 10pt;
-  background-color: #f5f5f5;
-  border: 1px solid #cccccc;
-  white-space: pre-wrap;
-}
-p.quote {
-  border-left: 4px solid #0066cc;
-  color: #555;
-}
-.highlight { color: #0066cc; font-weight: bold; }
-table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
-th, td { border: 1px solid #999; padding: 8px; font-family: 微软雅黑; font-size: 11pt; }
-th { background-color: #0066cc; color: white; font-weight: bold; }
-ul,ol,li {}
-p.withoutIndent {
-  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
-  font-size: 11pt;
-  line-height: 160%;
-  mso-line-height-rule: exactly;
-}
-`,
-        classRules: DEFAULT_CLASS_RULES + `
-- 重点强调：<span class="highlight">重点</span>`,
-    },
+        classRules: DEFAULT_CLASS_RULES + `内容约束：
+ 一级标题序号为中文汉字，一二三，序号到文本用顿号、连接；
+二级标题序号为中文括号数字，（一）（二）（三），序号到文本用顿号、连接；
+三级标题序号为阿拉伯数字，123，序号到文本用顿号、连接`,
+    }
 ];
 
 
