@@ -1143,15 +1143,52 @@ function preprocessMathFormulas(html: string): {
     let index = 0;
     let result = html;
 
-    // 替换 $$...$$ (块级公式)
-    // 如果公式在 <p> 标签内，替换整个 <p> 标签
-    result = result.replace(/<p[^>]*>\s*\$\$([\s\S]+?)\$\$\s*<\/p>/gi, (_, tex) => {
-        const placeholder = generateMathPlaceholder(index);
-        formulas.push({ placeholder, tex: tex.trim(), isBlock: true });
-        index++;
-        return `<p style="text-align:center;margin:0;">${placeholder}</p>`;
+    // 处理 <p> 标签内的块级公式 ($$...$$ 和 \[...\])
+    // 一次性处理，避免重复匹配
+    result = result.replace(/<p([^>]*)>([\s\S]+?)<\/p>/gi, (match, attrs, content) => {
+        // 检查是否包含块级公式
+        const hasBlockMath = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]/.test(content);
+        if (!hasBlockMath) {
+            return match; // 不包含块级公式，保持不变
+        }
+
+        // 分割内容，处理块级公式
+        const parts: string[] = [];
+        let remainingContent = content;
+        let position = 0;
+
+        // 合并两种块级公式的正则
+        const blockMathRegex = /(\$\$([\s\S]+?)\$\$)|(\\\[([\s\S]+?)\\\])/g;
+        let execResult;
+
+        while ((execResult = blockMathRegex.exec(content)) !== null) {
+            // 提取公式前的文本
+            const beforeFormula = content.substring(position, execResult.index);
+            if (beforeFormula.trim()) {
+                parts.push(`<p${attrs}>${beforeFormula}</p>`);
+            }
+
+            // 确定是哪种公式并提取内容
+            const tex = execResult[2] || execResult[4]; // $$...$$ 或 \[...\]
+            const placeholder = generateMathPlaceholder(index);
+            formulas.push({ placeholder, tex: tex.trim(), isBlock: true });
+            index++;
+            parts.push(`<p style="text-align:center;margin:0;">${placeholder}</p>`);
+
+            position = blockMathRegex.lastIndex;
+        }
+
+        // 处理最后一个公式之后的内容
+        const afterFormula = content.substring(position);
+        if (afterFormula.trim()) {
+            parts.push(`<p${attrs}>${afterFormula}</p>`);
+        }
+
+        // 如果没有分割（position还是0），说明正则没匹配到，返回原内容
+        return parts.length > 0 ? parts.join('') : match;
     });
-    // 处理不在 <p> 标签内的 $$...$$
+
+    // 处理不在 <p> 标签内的 $$...$$ (独立的块级公式)
     result = result.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
         const placeholder = generateMathPlaceholder(index);
         formulas.push({ placeholder, tex: tex.trim(), isBlock: true });
@@ -1159,13 +1196,7 @@ function preprocessMathFormulas(html: string): {
         return `<p style="text-align:center;margin:0;">${placeholder}</p>`;
     });
 
-    // 替换 \[...\] (块级公式)
-    result = result.replace(/<p[^>]*>\s*\\\[([\s\S]+?)\\\]\s*<\/p>/gi, (_, tex) => {
-        const placeholder = generateMathPlaceholder(index);
-        formulas.push({ placeholder, tex: tex.trim(), isBlock: true });
-        index++;
-        return `<p style="text-align:center;margin:0;">${placeholder}</p>`;
-    });
+    // 处理不在 <p> 标签内的 \[...\] (独立的块级公式)
     result = result.replace(/\\\[([\s\S]+?)\\\]/g, (_, tex) => {
         const placeholder = generateMathPlaceholder(index);
         formulas.push({ placeholder, tex: tex.trim(), isBlock: true });
