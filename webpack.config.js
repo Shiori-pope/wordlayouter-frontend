@@ -77,6 +77,7 @@ module.exports = (env, argv) => {
             }),
             new webpack.DefinePlugin({
                 'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
+                'process.env.REACT_APP_SHOW_DEBUG': JSON.stringify(process.env.REACT_APP_SHOW_DEBUG || 'false'),
                 'process.env.REACT_APP_PUBLIC_URL': JSON.stringify(process.env.REACT_APP_PUBLIC_URL || 'https://wordlayouter.top'),
                 'process.env.REACT_APP_API_BASE': JSON.stringify(process.env.REACT_APP_API_BASE || 'https://api.wordlayouter.top'),
                 'process.env.REACT_APP_AZURE_CLIENT_ID': JSON.stringify(process.env.REACT_APP_AZURE_CLIENT_ID || ''),

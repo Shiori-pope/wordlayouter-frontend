@@ -787,8 +787,8 @@ const App: React.FC = () => {
 
             {/* Bottom Area */}
             <div className={styles.bottomArea}>
-                {/* Debug Panel - 仅开发模式显示 */}
-                {process.env.NODE_ENV !== 'production' && (
+                {/* Debug Panel - 开发模式或显示指定时可见 */}
+                {(process.env.NODE_ENV !== 'production' || process.env.REACT_APP_SHOW_DEBUG === 'true') && (
                     <div className={styles.debugPanel}>
                         <div className={styles.debugHeader} onClick={() => setDebugMode(!debugMode)}>
                             <div className={styles.debugHeaderLeft}>
