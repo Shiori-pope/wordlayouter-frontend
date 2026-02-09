@@ -1165,8 +1165,28 @@ export async function insertHtmlAsDocx(
 ): Promise<void> {
     console.log('[insertHtmlAsDocx] 开始转换，HTML 长度:', html.length);
 
+    // 0. 最先预处理 <li> 标签：确保 <li> 内部包含 <p class="withoutIndent"> 标签
+    // 这样可以确保列表项既能应用字体样式，又不会触发正文的首行缩进
+    const processedLiHtml = html.replace(/<li(\s+[^>]*)?>([\s\S]*?)<\/li>/gi, (match, attrs, content) => {
+        const trimmedContent = content.trim();
+        // 如果内容已经是 <p ...>...</p> 结构
+        if (/^<p[\s+>]/i.test(trimmedContent) && /<\/p>$/i.test(trimmedContent)) {
+            // 如果已经有 class，检查是否包含 withoutIndent
+            if (/class\s*=/i.test(trimmedContent)) {
+                if (!/withoutIndent/i.test(trimmedContent)) {
+                    // 追加 class
+                    return `<li${attrs || ''}>${trimmedContent.replace(/(class\s*=\s*["'])([^"']*)(["'])/i, '$1$2 withoutIndent$3')}</li>`;
+                }
+                return match;
+            }
+            // 没有 class，添加 class="withoutIndent"
+            return `<li${attrs || ''}>${trimmedContent.replace(/<p/i, '<p class="withoutIndent"')}</li>`;
+        }
+        return `<li${attrs || ''}><p class="withoutIndent">${content}</p></li>`;
+    });
+
     // 1. 预处理：提取公式，替换为占位符
-    const { html: processedHtml, formulas } = preprocessMathFormulas(html);
+    const { html: processedHtml, formulas } = preprocessMathFormulas(processedLiHtml);
     console.log('[insertHtmlAsDocx] 提取到', formulas.length, '个公式');
 
     // 2. 将占位符替换为可搜索的标记文本

@@ -19,7 +19,8 @@ export const CLASS_STYLE_MAP: Record<string, string> = {
     'th, td': 'border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt;',
     'th': 'background-color: #f0f0f0; font-weight: bold;',
     'ul, ol': 'margin: 0; padding-left: 0;',
-    'li': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 150%; text-indent: 2em; mso-char-indent-count: 2;'
+    'li': '',
+    'p.withoutIndent': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 150%;'
 };
 
 /**
@@ -48,8 +49,6 @@ export const DEFAULT_CLASS_RULES = `
 - 引用：<p class="quote">引用</p>
 - 表格：使用 table, tr, th, td 标签
 - 列表：使用 ul, ol, li 标签
-- 禁止使用 h1~h6 标签
-- 优先使用 class，非必要不使用内联 style
 `;
 
 // =========================================================================================
@@ -120,7 +119,13 @@ table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
 th, td { border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt; }
 th { background-color: #f0f0f0; font-weight: bold; }
 ul, ol { margin: 8pt 0; padding-left: 24pt; }
-li { margin: 4pt 0; font-family: 宋体; font-size: 12pt; }
+li {}
+p.withoutIndent {
+  font-family: 宋体, SimSun, serif;
+  font-size: 12pt;
+  line-height: 150%;
+  mso-line-height-rule: exactly;
+}
 `,
         classRules: DEFAULT_CLASS_RULES,
     },
@@ -188,7 +193,13 @@ table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
 th, td { border: 1px solid #999; padding: 8px; font-family: 微软雅黑; font-size: 11pt; }
 th { background-color: #0066cc; color: white; font-weight: bold; }
 ul, ol { margin: 8pt 0; padding-left: 24pt; }
-li { margin: 4pt 0; font-family: 微软雅黑; font-size: 11pt; }
+li {}
+p.withoutIndent {
+  font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
+  font-size: 11pt;
+  line-height: 160%;
+  mso-line-height-rule: exactly;
+}
 `,
         classRules: DEFAULT_CLASS_RULES + `
 - 重点强调：<span class="highlight">重点</span>`,
