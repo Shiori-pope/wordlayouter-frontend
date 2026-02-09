@@ -18,8 +18,7 @@ export const CLASS_STYLE_MAP: Record<string, string> = {
     'table': 'border-collapse: collapse; width: 100%; margin: 8pt 0;',
     'th, td': 'border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt;',
     'th': 'background-color: #f0f0f0; font-weight: bold;',
-    'ul, ol': 'margin: 0; padding-left: 0;',
-    'li': '',
+    'ul,ol,li': '',
     'p.withoutIndent': 'font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 150%;'
 };
 
@@ -118,8 +117,7 @@ p.quote {
 table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
 th, td { border: 1px solid #999; padding: 8px; font-family: 宋体; font-size: 12pt; }
 th { background-color: #f0f0f0; font-weight: bold; }
-ul, ol { margin: 8pt 0; padding-left: 24pt; }
-li {}
+ul, ol,li {}
 p.withoutIndent {
   font-family: 宋体, SimSun, serif;
   font-size: 12pt;
@@ -192,8 +190,7 @@ p.quote {
 table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
 th, td { border: 1px solid #999; padding: 8px; font-family: 微软雅黑; font-size: 11pt; }
 th { background-color: #0066cc; color: white; font-weight: bold; }
-ul, ol { margin: 8pt 0; padding-left: 24pt; }
-li {}
+ul,ol,li {}
 p.withoutIndent {
   font-family: 微软雅黑, "Microsoft YaHei", sans-serif;
   font-size: 11pt;
