@@ -71,7 +71,7 @@ const LandingPage: React.FC = () => {
                     color: 'var(--text-muted)', fontSize: '1.25rem', maxWidth: '600px',
                     marginBottom: '40px'
                 }}>
-                    Word AI Assistant 是一款为 Office 用户量身定制的智能插件，集成了最先进的 AI 模型，助您一键润色、智能排版。
+                    Word Layouter 是一款为 Office 用户量身定制的智能插件，集成了最先进的 AI 模型，助您一键润色、智能排版。
                 </p>
                 <div style={{ display: 'flex', gap: '20px' }}>
                     <a href="#install" className="btn-primary" style={{ fontSize: '1.1rem', padding: '16px 40px' }}>
@@ -175,7 +175,7 @@ const LandingPage: React.FC = () => {
             {/* Footer */}
             <footer style={{ padding: '60px 20px', textAlign: 'center', borderTop: '1px solid var(--glass-border)' }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                    &copy; 2026 Word AI Assistant. Powered by Google Gemini & DeepSeek.
+                    &copy; 2026 Word Layouter. Powered by Google Gemini & DeepSeek.
                 </p>
             </footer>
         </div>

@@ -1,8 +1,8 @@
 <div align="center">
 
-# ✨ Word AI Assistant
+# ✨ Word Layouter
 
-### 🚀 让 AI 直接理解和生成 Word 原生格式文档
+### 🚀 智能 Word 文档排版助手
 
 <p align="center">
   <img src="https://img.shields.io/badge/Word-2B579A?style=for-the-badge&logo=microsoft-word&logoColor=white" alt="Word" />
@@ -25,14 +25,14 @@
 
 ## 🎯 项目简介
 
-**Word AI Assistant** 是一款革命性的 Microsoft Word 插件，将大语言模型的强大能力直接整合到文档编辑流程中。与传统的 AI 写作工具不同，本插件能够：
+**Word Layouter** 是一款革命性的 Microsoft Word 插件，将大语言模型的强大能力直接整合到文档编辑流程中。与传统的 AI 写作工具不同，本插件能够：
 
 - 🎨 **理解并生成 Word 原生格式**（HTML 而非 Markdown）
 - 🔮 **支持完整的数学公式渲染**（LaTeX/TeX 格式）
 - ⚡ **实时流式输出**，即时查看 AI 生成过程
 - 🎯 **一键插入保持格式**，无需手动调整排版
 
-> 💡 **为什么选择它？** 大多数 AI 写作工具只能生成纯文本或 Markdown，需要手动转换和排版。Word AI Assistant 直接生成 Word 可识别的 HTML 格式，保留完整的字体、颜色、对齐、数学公式等信息。
+> 💡 **为什么选择它？** 大多数 AI 写作工具只能生成纯文本或 Markdown，需要手动转换和排版。Word Layouter 直接生成 Word 可识别的 HTML 格式，保留完整的字体、颜色、对齐、数学公式等信息。
 
 ---
 
@@ -165,7 +165,7 @@ npm start
 3. 选择 **受信任的加载项目录**
 4. 点击 **添加新位置**，选择项目根目录
 5. 重启 Word
-6. **插入** → **加载项** → **我的加载项** → 选择 **Word AI Assistant**
+6. **插入** → **加载项** → **我的加载项** → 选择 **Word Layouter**
 
 #### macOS 用户
 
@@ -679,7 +679,7 @@ chore: 构建/工具
 ```
 MIT License
 
-Copyright (c) 2026 Word AI Assistant Contributors
+Copyright (c) 2026 Word Layouter Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

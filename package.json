@@ -1,7 +1,7 @@
 {
-  "name": "word-ai-assistant",
+  "name": "word-layouter",
   "version": "1.0.0",
-  "description": "Word AI Assistant - 基于DeepSeek的智能Word文档助手",
+  "description": "Word Layouter - 智能Word文档排版助手",
   "main": "index.js",
   "scripts": {
     "start": "webpack serve --mode development",
