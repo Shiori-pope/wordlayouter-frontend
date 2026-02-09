@@ -740,7 +740,7 @@ const App: React.FC = () => {
                                     <div className={styles.htmlPreview}>
                                         <div className={styles.htmlHeader}>
                                             <DocumentAdd24Regular style={{ width: 14, height: 14 }} />
-                                            <span>HTML 格式</span>
+                                            <span>word 格式</span>
                                             {message.hasMath && <span>· 含公式</span>}
                                         </div>
                                     </div>
@@ -757,7 +757,7 @@ const App: React.FC = () => {
                                         >
                                             {message.isHtml ? '插入格式化内容' : '插入文本'}
                                         </Button>
-                                        {message.isHtml && message.rawHtml && (
+                                        {message.isHtml && message.rawHtml && (process.env.NODE_ENV !== 'production' || process.env.REACT_APP_SHOW_DEBUG === 'true') && (
                                             <Button
                                                 className={styles.actionBtn}
                                                 appearance="subtle"
