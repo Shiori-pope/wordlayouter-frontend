@@ -36,7 +36,7 @@ const LandingPage: React.FC = () => {
                         }}>
                             <Sparkle24Filled style={{ color: '#fff', width: 20, height: 20 }} />
                         </div>
-                        <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.5px' }}>Word AI</span>
+                        <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.5px' }}>Word Layouter</span>
                     </div>
                     <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
                         <a href="#features" className="nav-link">功能特性</a>

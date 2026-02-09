@@ -677,7 +677,7 @@ const App: React.FC = () => {
                     <div className={styles.headerIcon}>
                         <Sparkle24Filled style={{ color: '#ffffff', width: 14, height: 14 }} />
                     </div>
-                    <Text className={styles.headerText}>Word AI</Text>
+                    <Text className={styles.headerText}>Word Layouter</Text>
                 </div>
                 <div style={{ marginLeft: 'auto' }} className={styles.headerRight}>
                     <Button
