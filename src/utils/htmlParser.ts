@@ -381,8 +381,12 @@ class LatexToOmml {
                 result += `<m:r><m:t>${ch}</m:t></m:r>`;
                 this.pos++;
             } else {
-                // 普通字符
-                result += `<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>${escapeXml(ch)}</m:t></m:r>`;
+                // 普通字符 - 检测是否为中文，中文使用正体
+                if (/[\u4e00-\u9fa5]/.test(ch)) {
+                    result += `<m:r><m:rPr><m:nor/></m:rPr><m:t>${escapeXml(ch)}</m:t></m:r>`;
+                } else {
+                    result += `<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>${escapeXml(ch)}</m:t></m:r>`;
+                }
                 this.pos++;
             }
         }
@@ -639,8 +643,16 @@ class LatexToOmml {
 
     private parseTextCommand(): string {
         const content = this.parseGroup();
-        // text 内容去掉 m:r 包装的斜体样式
-        return content.replace(/<m:sty m:val="p"\/>/g, '');
+        // 提取纯文本
+        const text = content.replace(/<[^>]+>/g, '');
+        // text 内容使用正体样式
+        return this.createTextWithStyle(text);
+    }
+
+    private createTextWithStyle(text: string): string {
+        // \text{} 命令中的所有内容都应该使用正体（非斜体），无论是中文还是英文
+        // 因为 \text{} 明确表示这是普通文本而不是数学变量
+        return `<m:r><m:rPr><m:nor/></m:rPr><m:t>${escapeXml(text)}</m:t></m:r>`;
     }
 
     private parseAccent(accentChar: string): string {
@@ -708,9 +720,9 @@ class LatexToOmml {
         // 提取纯文本内容
         const topTextClean = topText.replace(/<[^>]+>/g, '');
 
-        // 创建带上标文本的箭头
-        // 使用 sSup 结构来表示箭头带上标
-        return `<m:sSup><m:e><m:r><m:t>${escapeXml(arrow)}</m:t></m:r></m:e><m:sup><m:r><m:t>${escapeXml(topTextClean)}</m:t></m:r></m:sup></m:sSup>`;
+        // 创建带上标文本的箭头 - 使用 limUpp 将文本放在正上方
+        const topTextOmml = this.createTextWithStyle(topTextClean);
+        return `<m:limUpp><m:e><m:r><m:t>${escapeXml(arrow)}</m:t></m:r></m:e><m:lim>${topTextOmml}</m:lim></m:limUpp>`;
     }
 
     private parseBinom(): string {
