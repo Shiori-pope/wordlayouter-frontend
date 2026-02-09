@@ -336,6 +336,8 @@ const App: React.FC = () => {
 
     const [debugMode, setDebugMode] = useState(false);
     const [debugHtml, setDebugHtml] = useState('');
+    const [forceDebug, setForceDebug] = useState(false);
+    const debugClickCount = useRef(0);
     const [showSettings, setShowSettings] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const [activePreset, setActivePreset] = useState<LayoutPreset | null>(null);
@@ -357,6 +359,14 @@ const App: React.FC = () => {
         setActivePreset(getActivePreset());
         setActiveModel(getActiveModel());
     }, []);
+
+    const handleHeaderClick = () => {
+        debugClickCount.current += 1;
+        if (debugClickCount.current >= 5) {
+            setForceDebug(true);
+            console.log('Secret: Debug mode forced ON');
+        }
+    };
 
     // 自动调整 textarea 高度
     const autosize = () => {
@@ -656,7 +666,7 @@ const App: React.FC = () => {
     return (
         <div className={styles.root}>
             {/* Header */}
-            <div className={styles.header}>
+            <div className={styles.header} onClick={handleHeaderClick}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div className={styles.headerIcon}>
                         <Sparkle24Filled style={{ color: '#ffffff', width: 14, height: 14 }} />
@@ -787,8 +797,8 @@ const App: React.FC = () => {
 
             {/* Bottom Area */}
             <div className={styles.bottomArea}>
-                {/* Debug Panel - 开发模式或显示指定时可见 */}
-                {(process.env.NODE_ENV !== 'production' || process.env.REACT_APP_SHOW_DEBUG === 'true') && (
+                {/* Debug Panel - 开发模式、显式指定或触发彩蛋时可见 */}
+                {(process.env.NODE_ENV !== 'production' || process.env.REACT_APP_SHOW_DEBUG === 'true' || forceDebug) && (
                     <div className={styles.debugPanel}>
                         <div className={styles.debugHeader} onClick={() => setDebugMode(!debugMode)}>
                             <div className={styles.debugHeaderLeft}>
