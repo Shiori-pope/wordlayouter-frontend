@@ -46,13 +46,32 @@ export function getAllPresets(): LayoutPreset[] {
     const editedBuiltIns = customPresets.filter(p => builtInIds.includes(p.id));
     const pureCustom = customPresets.filter(p => !builtInIds.includes(p.id));
 
+    // 处理版本兼容性：将不再存在的内置预设降级为自定义预设
+    const obsoleteBuiltIns = customPresets.filter(p =>
+        p.isBuiltIn && !builtInIds.includes(p.id)
+    );
+
+    // 如果有需要降级的预设，更新存储
+    if (obsoleteBuiltIns.length > 0) {
+        const updatedPresets = customPresets.map(p => {
+            if (p.isBuiltIn && !builtInIds.includes(p.id)) {
+                return { ...p, isBuiltIn: false };
+            }
+            return p;
+        });
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(updatedPresets));
+    }
+
     // 使用编辑过的内置预设替换原始的
     const finalBuiltIns = BUILT_IN_PRESETS.map(original => {
         const edited = editedBuiltIns.find(e => e.id === original.id);
         return edited || original;
     });
 
-    return [...finalBuiltIns, ...pureCustom];
+    // 降级的预设现在作为自定义预设处理
+    const downgradedCustom = obsoleteBuiltIns.map(p => ({ ...p, isBuiltIn: false }));
+
+    return [...finalBuiltIns, ...pureCustom, ...downgradedCustom];
 }
 
 /**

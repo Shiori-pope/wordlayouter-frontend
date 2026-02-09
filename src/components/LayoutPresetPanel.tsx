@@ -290,7 +290,12 @@ const LayoutPresetPanel: React.FC<LayoutPresetPanelProps> = ({ onPresetChange })
   const isPresetModified = (preset: LayoutPreset): boolean => {
     if (!preset.isBuiltIn) return false;
     const original = BUILT_IN_PRESETS.find(p => p.id === preset.id);
-    return original?.formatDescription !== preset.formatDescription;
+    if (!original) return false;
+
+    return original.name !== preset.name ||
+           original.formatDescription !== preset.formatDescription ||
+           original.cssStyles !== preset.cssStyles ||
+           original.classRules !== preset.classRules;
   };
 
   return (
@@ -322,7 +327,7 @@ const LayoutPresetPanel: React.FC<LayoutPresetPanelProps> = ({ onPresetChange })
               className={`${styles.presetItem} ${!activePreset ? styles.presetItemActive : ''}`}
               onClick={() => handleSelectPreset(null)}
             >
-              <span className={styles.presetName}>默认</span>
+              <span className={styles.presetName}>无版式</span>
               {!activePreset && <Checkmark24Regular style={{ width: 16, height: 16, color: '#667eea' }} />}
             </div>
 
@@ -348,16 +353,14 @@ const LayoutPresetPanel: React.FC<LayoutPresetPanelProps> = ({ onPresetChange })
                     onClick={(e) => handleEditPreset(preset, e)}
                   />
                   {preset.isBuiltIn ? (
-                    isPresetModified(preset) && (
-                      <Button
-                        className={styles.actionBtn}
-                        icon={<ArrowReset24Regular style={{ width: 14, height: 14 }} />}
-                        size="small"
-                        appearance="subtle"
-                        onClick={(e) => handleResetPreset(preset, e)}
-                        title="重置为默认"
-                      />
-                    )
+                    <Button
+                      className={styles.actionBtn}
+                      icon={<ArrowReset24Regular style={{ width: 14, height: 14 }} />}
+                      size="small"
+                      appearance="subtle"
+                      onClick={(e) => handleResetPreset(preset, e)}
+                      title="重置为默认"
+                    />
                   ) : (
                     <Button
                       className={styles.actionBtn}
