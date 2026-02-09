@@ -104,6 +104,18 @@ export function texToUnicode(tex: string): string {
         result = result.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), symbol);
     }
 
+    // 处理 xrightarrow{上面的文本} -> →[上面的文本]
+    result = result.replace(/\\xrightarrow\{([^}]*)\}/g, (_, text) => {
+        // 处理上标文本中的符号
+        let processedText = text;
+        for (const [cmd, symbol] of Object.entries(TEX_SYMBOLS)) {
+            processedText = processedText.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), symbol);
+        }
+        // 移除剩余的命令和括号
+        processedText = processedText.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
+        return `→[${processedText}]`;
+    });
+
     // 处理 operatorname
     result = result.replace(/\\operatorname\{([^}]*)\}/g, '$1');
 
@@ -406,6 +418,8 @@ class LatexToOmml {
                 return this.parseAccent('\u0306');  // combining breve
             case 'check':
                 return this.parseAccent('\u030c');  // combining caron
+            case 'xrightarrow':
+                return this.parseXArrow();
             case 'begin':
                 return this.parseEnvironment();
             case 'end':
@@ -600,6 +614,17 @@ class LatexToOmml {
         // 提取纯文本
         const text = content.replace(/<[^>]+>/g, '');
         return `<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>${escapeXml(text)}</m:t></m:r>`;
+    }
+
+    private parseXArrow(): string {
+        // xrightarrow{上面的文本} - 解析上面的文本
+        const topText = this.parseGroup();
+        // 提取纯文本内容
+        const topTextClean = topText.replace(/<[^>]+>/g, '');
+
+        // 创建带上标文本的箭头
+        // 使用 sSup 结构来表示箭头带上标
+        return `<m:sSup><m:e><m:r><m:t>→</m:t></m:r></m:e><m:sup><m:r><m:t>${escapeXml(topTextClean)}</m:t></m:r></m:sup></m:sSup>`;
     }
 
     private skipGroup(): void {
