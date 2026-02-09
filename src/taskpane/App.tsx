@@ -35,7 +35,7 @@ import SettingsPanel from '../components/SettingsPanel';
 import { FileUploadButton, FileStrip } from '../components/FileUploadPanel';
 import { AuthPanel } from '../components/AuthPanel';
 import { UserPanel } from '../components/UserPanel';
-import { LayoutPreset, getActivePreset } from '../types/layoutPreset';
+import { LayoutPreset, getActivePreset, setActivePresetId } from '../types/layoutPreset';
 import { ModelConfig, getActiveModel } from '../types/modelConfig';
 import { ParsedFile } from '../utils/fileParser';
 
@@ -356,7 +356,13 @@ const App: React.FC = () => {
     }, [fileError]);
 
     useEffect(() => {
-        setActivePreset(getActivePreset());
+        let preset = getActivePreset();
+        if (!preset) {
+            // 默认选中高阶预设版式1
+            setActivePresetId('high-built-in-1');
+            preset = getActivePreset();
+        }
+        setActivePreset(preset);
         setActiveModel(getActiveModel());
     }, []);
 
@@ -849,7 +855,7 @@ const App: React.FC = () => {
                 {/* Controls Row - 保留在主界面，位于输入区上方 */}
                 <div className={styles.inputArea}>
                     <div className={styles.controlsRow}>
-                        <ModelSelector onModelChange={handleModelChange} />
+                        {/* <ModelSelector onModelChange={handleModelChange} /> */}
                         <LayoutPresetPanel onPresetChange={handlePresetChange} />
                         <FileUploadButton
                             currentModel={activeModel}
