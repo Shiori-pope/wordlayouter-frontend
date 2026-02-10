@@ -8,6 +8,7 @@ import {
     makeStyles,
     tokens,
     shorthands,
+    Switch,
 } from '@fluentui/react-components';
 import {
     Send24Regular,
@@ -339,6 +340,7 @@ const App: React.FC = () => {
     const [forceDebug, setForceDebug] = useState(false);
     const debugClickCount = useRef(0);
     const [showSettings, setShowSettings] = useState(false);
+    const [isFormulaMode, setIsFormulaMode] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const [activePreset, setActivePreset] = useState<LayoutPreset | null>(null);
     const [activeModel, setActiveModel] = useState<ModelConfig | null>(null);
@@ -365,6 +367,23 @@ const App: React.FC = () => {
         setActivePreset(preset);
         setActiveModel(getActiveModel());
     }, []);
+
+    const handleToggleFormulaMode = () => {
+        if (!isFormulaMode) {
+            // 切换到纯公式模式
+            if (messages.length > 0) {
+                if (window.confirm('切换到纯公式模式将清空当前聊天记录，是否继续？')) {
+                    setMessages([]);
+                    setIsFormulaMode(true);
+                }
+            } else {
+                setIsFormulaMode(true);
+            }
+        } else {
+            // 切换回标准模式
+            setIsFormulaMode(false);
+        }
+    };
 
     const handleHeaderClick = () => {
         debugClickCount.current += 1;
@@ -499,7 +518,8 @@ const App: React.FC = () => {
                 null,
                 activePreset,
                 uploadedFiles,
-                activeModel || undefined
+                activeModel || undefined,
+                isFormulaMode
             );
 
             for await (const chunk of stream) {
@@ -863,6 +883,16 @@ const App: React.FC = () => {
                             uploadedFiles={uploadedFiles}
                             onError={setFileError}
                         />
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Text size={200} weight="semibold" style={{ color: isFormulaMode ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground3 }}>
+                                纯公式模式
+                            </Text>
+                            <Switch
+                                checked={isFormulaMode}
+                                onChange={handleToggleFormulaMode}
+                                size="small"
+                            />
+                        </div>
                         {fileError && (
                             <Text style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px' }}>
                                 {fileError}

@@ -6,6 +6,7 @@ import { isAuthenticated, getStoredToken } from './authService';
 import { DEFAULT_CSS_STYLES } from '../config/layoutConfig';
 import systemPromptTemplate from '../prompts/system.txt';
 import generateStylesPromptTemplate from '../prompts/generateStyles.txt';
+import formulaPromptTemplate from '../prompts/formula.txt';
 
 // API 配置 - 从环境变量读取
 const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3001';
@@ -60,7 +61,11 @@ function renderTemplate(template: string, data: Record<string, string | undefine
 /**
  * 构建系统提示词，使用模板文件
  */
-export function buildSystemPrompt(layoutPreset?: LayoutPreset | null): string {
+export function buildSystemPrompt(layoutPreset?: LayoutPreset | null, isFormulaMode: boolean = false): string {
+    if (isFormulaMode) {
+        return formulaPromptTemplate.trim();
+    }
+
     const classRules = layoutPreset?.classRules || DEFAULT_CLASS_RULES;
 
     return renderTemplate(systemPromptTemplate, {
@@ -88,14 +93,24 @@ function buildMessages(
     context: { text: string } | null | undefined,
     layoutPreset: LayoutPreset | null | undefined,
     uploadedFiles: ParsedFile[] | undefined,
-    model: ModelConfig
+    model: ModelConfig,
+    isFormulaMode: boolean = false
 ): Message[] {
     const messages: Message[] = [];
 
     messages.push({
         role: 'system',
-        content: buildSystemPrompt(layoutPreset),
+        content: buildSystemPrompt(layoutPreset, isFormulaMode),
     });
+
+    if (isFormulaMode) {
+        // 纯公式模式下，仅支持单轮对话，不带上下文和历史记录
+        messages.push({
+            role: 'user',
+            content: userMessage,
+        });
+        return messages;
+    }
 
     if (context && context.text) {
         messages.push({
@@ -158,7 +173,8 @@ export async function callDeepSeek(
     context?: { text: string } | null,
     layoutPreset?: LayoutPreset | null,
     uploadedFiles?: ParsedFile[],
-    model?: ModelConfig
+    model?: ModelConfig,
+    isFormulaMode: boolean = false
 ): Promise<string> {
     const currentModel: ModelConfig = model || {
         id: 'deepseek-chat',
@@ -177,7 +193,8 @@ export async function callDeepSeek(
         context,
         layoutPreset,
         uploadedFiles,
-        currentModel
+        currentModel,
+        isFormulaMode
     );
 
     // 如果用户已认证，优先使用后端代理
@@ -319,7 +336,8 @@ export async function* streamDeepSeek(
     context?: { text: string } | null,
     layoutPreset?: LayoutPreset | null,
     uploadedFiles?: ParsedFile[],
-    model?: ModelConfig
+    model?: ModelConfig,
+    isFormulaMode: boolean = false
 ): AsyncGenerator<string, void, unknown> {
     const currentModel: ModelConfig = model || {
         id: 'deepseek-chat',
@@ -338,7 +356,8 @@ export async function* streamDeepSeek(
         context,
         layoutPreset,
         uploadedFiles,
-        currentModel
+        currentModel,
+        isFormulaMode
     );
 
     // 如果用户已认证，优先使用后端代理
