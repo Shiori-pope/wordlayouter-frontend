@@ -369,15 +369,26 @@ const App: React.FC = () => {
         setActiveModel(getActiveModel());
     }, []);
 
-    const handleToggleFormulaMode = () => {
+    const handleToggleFormulaMode = (e?: React.MouseEvent | React.ChangeEvent) => {
+        if (e) {
+            e.stopPropagation();
+        }
+
         const nextMode = !isFormulaMode;
+        console.log('[handleToggleFormulaMode] Attempting to switch to:', nextMode ? 'Formula' : 'Standard');
 
         if (messages.length > 0) {
             const modeName = nextMode ? '纯公式模式' : '标准对话模式';
-            if (window.confirm(`切换到${modeName}将清空当前聊天记录，是否继续？`)) {
-                setMessages([]);
-                setIsFormulaMode(nextMode);
-            }
+            // 使用 setTimeout 确保在事件处理周期之后执行确认弹窗，增加稳定性
+            setTimeout(() => {
+                if (window.confirm(`切换到${modeName}将清空当前聊天记录，是否继续？`)) {
+                    console.log('[handleToggleFormulaMode] Confirmed. Clearing messages and switching.');
+                    setMessages([]);
+                    setIsFormulaMode(nextMode);
+                } else {
+                    console.log('[handleToggleFormulaMode] Canceled by user.');
+                }
+            }, 0);
         } else {
             setIsFormulaMode(nextMode);
         }
@@ -881,17 +892,21 @@ const App: React.FC = () => {
                             uploadedFiles={uploadedFiles}
                             onError={setFileError}
                         />
-                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                            onClick={handleToggleFormulaMode}
+                        >
                             <Tooltip content="该模式无上下文记忆，生成公式更快速、更经济" relationship="label">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Text size={200} weight="semibold" style={{ color: isFormulaMode ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground3 }}>
                                         纯公式模式
                                     </Text>
-                                    <Switch
-                                        checked={isFormulaMode}
-                                        onChange={handleToggleFormulaMode}
-                                        size="small"
-                                    />
+                                    <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                                        <Switch
+                                            checked={isFormulaMode}
+                                            size="small"
+                                        />
+                                    </div>
                                 </div>
                             </Tooltip>
                         </div>
