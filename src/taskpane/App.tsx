@@ -9,6 +9,7 @@ import {
     tokens,
     shorthands,
     Switch,
+    Tooltip,
 } from '@fluentui/react-components';
 import {
     Send24Regular,
@@ -369,19 +370,16 @@ const App: React.FC = () => {
     }, []);
 
     const handleToggleFormulaMode = () => {
-        if (!isFormulaMode) {
-            // 切换到纯公式模式
-            if (messages.length > 0) {
-                if (window.confirm('切换到纯公式模式将清空当前聊天记录，是否继续？')) {
-                    setMessages([]);
-                    setIsFormulaMode(true);
-                }
-            } else {
-                setIsFormulaMode(true);
+        const nextMode = !isFormulaMode;
+
+        if (messages.length > 0) {
+            const modeName = nextMode ? '纯公式模式' : '标准对话模式';
+            if (window.confirm(`切换到${modeName}将清空当前聊天记录，是否继续？`)) {
+                setMessages([]);
+                setIsFormulaMode(nextMode);
             }
         } else {
-            // 切换回标准模式
-            setIsFormulaMode(false);
+            setIsFormulaMode(nextMode);
         }
     };
 
@@ -884,14 +882,18 @@ const App: React.FC = () => {
                             onError={setFileError}
                         />
                         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Text size={200} weight="semibold" style={{ color: isFormulaMode ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground3 }}>
-                                纯公式模式
-                            </Text>
-                            <Switch
-                                checked={isFormulaMode}
-                                onChange={handleToggleFormulaMode}
-                                size="small"
-                            />
+                            <Tooltip content="该模式无上下文记忆，生成公式更快速、更经济" relationship="label">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <Text size={200} weight="semibold" style={{ color: isFormulaMode ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground3 }}>
+                                        纯公式模式
+                                    </Text>
+                                    <Switch
+                                        checked={isFormulaMode}
+                                        onChange={handleToggleFormulaMode}
+                                        size="small"
+                                    />
+                                </div>
+                            </Tooltip>
                         </div>
                         {fileError && (
                             <Text style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px' }}>
