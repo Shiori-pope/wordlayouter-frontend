@@ -10,6 +10,13 @@ import {
     shorthands,
     Switch,
     Tooltip,
+    Dialog,
+    DialogTrigger,
+    DialogSurface,
+    DialogTitle,
+    DialogBody,
+    DialogActions,
+    DialogContent,
 } from '@fluentui/react-components';
 import {
     Send24Regular,
@@ -342,6 +349,7 @@ const App: React.FC = () => {
     const debugClickCount = useRef(0);
     const [showSettings, setShowSettings] = useState(false);
     const [isFormulaMode, setIsFormulaMode] = useState(false);
+    const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const [activePreset, setActivePreset] = useState<LayoutPreset | null>(null);
     const [activeModel, setActiveModel] = useState<ModelConfig | null>(null);
@@ -375,23 +383,23 @@ const App: React.FC = () => {
         }
 
         const nextMode = !isFormulaMode;
-        console.log('[handleToggleFormulaMode] Attempting to switch to:', nextMode ? 'Formula' : 'Standard');
+        console.log('[handleToggleFormulaMode] User triggered switch to:', nextMode ? 'Formula' : 'Standard');
 
         if (messages.length > 0) {
-            const modeName = nextMode ? '纯公式模式' : '标准对话模式';
-            // 使用 setTimeout 确保在事件处理周期之后执行确认弹窗，增加稳定性
-            setTimeout(() => {
-                if (window.confirm(`切换到${modeName}将清空当前聊天记录，是否继续？`)) {
-                    console.log('[handleToggleFormulaMode] Confirmed. Clearing messages and switching.');
-                    setMessages([]);
-                    setIsFormulaMode(nextMode);
-                } else {
-                    console.log('[handleToggleFormulaMode] Canceled by user.');
-                }
-            }, 0);
+            // 如果有消息，打开确认对话框
+            setIsConfirmDialogOpen(true);
         } else {
+            // 如果没有消息，直接切换
             setIsFormulaMode(nextMode);
         }
+    };
+
+    const handleConfirmSwitch = () => {
+        const nextMode = !isFormulaMode;
+        console.log('[handleConfirmSwitch] Confirmed. Clearing messages and switching to:', nextMode ? 'Formula' : 'Standard');
+        setMessages([]);
+        setIsFormulaMode(nextMode);
+        setIsConfirmDialogOpen(false);
     };
 
     const handleHeaderClick = () => {
@@ -916,6 +924,24 @@ const App: React.FC = () => {
                             </Text>
                         )}
                     </div>
+
+                    {/* Mode Switch Confirmation Dialog */}
+                    <Dialog open={isConfirmDialogOpen} onOpenChange={(event, data) => setIsConfirmDialogOpen(data.open)}>
+                        <DialogSurface>
+                            <DialogBody>
+                                <DialogTitle>切换模式确认</DialogTitle>
+                                <DialogContent>
+                                    切换到{isFormulaMode ? '标准对话模式' : '纯公式模式'}将清空当前聊天记录，是否继续？
+                                </DialogContent>
+                                <DialogActions>
+                                    <DialogTrigger disableButtonEnhancement>
+                                        <Button appearance="secondary">取消</Button>
+                                    </DialogTrigger>
+                                    <Button appearance="primary" onClick={handleConfirmSwitch}>确认切换</Button>
+                                </DialogActions>
+                            </DialogBody>
+                        </DialogSurface>
+                    </Dialog>
 
                     {/* Input Row */}
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
