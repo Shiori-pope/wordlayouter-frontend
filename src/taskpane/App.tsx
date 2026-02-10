@@ -233,6 +233,15 @@ const useStyles = makeStyles({
         ...shorthands.padding('12px', '16px'),
         paddingBottom: '12px',
     },
+    formulaLabel: {
+        minWidth: 'auto',
+        maxWidth: '80px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        lineHeight: '20px', // Match Switch height roughly
+        display: 'block',
+    },
     controlsRow: {
         display: 'flex',
         alignItems: 'center',
@@ -906,7 +915,12 @@ const App: React.FC = () => {
                         >
                             <Tooltip content="该模式无上下文记忆，生成公式更快速、更经济" relationship="label">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Text size={200} weight="semibold" style={{ color: isFormulaMode ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground3 }}>
+                                    <Text
+                                        size={200}
+                                        weight="semibold"
+                                        className={styles.formulaLabel}
+                                        style={{ color: isFormulaMode ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground3 }}
+                                    >
                                         纯公式模式
                                     </Text>
                                     <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
