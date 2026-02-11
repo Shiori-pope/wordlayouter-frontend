@@ -51,14 +51,6 @@ const LandingPage: React.FC = () => {
                 paddingTop: '160px', paddingBottom: '100px',
                 textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center'
             }}>
-                <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '8px',
-                    padding: '6px 16px', borderRadius: '100px', background: 'rgba(79, 70, 229, 0.1)',
-                    border: '1px solid rgba(79, 70, 229, 0.2)', color: '#818cf8',
-                    fontSize: '0.9rem', fontWeight: 600, marginBottom: '32px'
-                }}>
-                    <span className="animate-pulse">✨</span> 基于 DeepSeek R1 强力驱动
-                </div>
                 <h1 className="hero-title" style={{
                     fontSize: '4.5rem', lineHeight: 1.1, maxWidth: '900px',
                     marginBottom: '24px', letterSpacing: '-2px'
@@ -87,13 +79,17 @@ const LandingPage: React.FC = () => {
                 {/* Floating Preview Image / Icon */}
                 <div style={{ marginTop: '80px', position: 'relative' }}>
                     <div className="glass-card animate-float" style={{
-                        width: '800px', height: '450px', background: 'rgba(255,255,255,0.02)',
+                        width: '800px', height: '450px',
+                        background: 'rgba(255,255,255,0.02)',
+                        overflow: 'hidden',
+                        padding: 0,
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
-                        <div style={{ opacity: 0.3, textAlign: 'center' }}>
-                            <Sparkle24Filled style={{ width: 120, height: 120, marginBottom: 20 }} />
-                            <p>AI 排版引擎预览界面</p>
-                        </div>
+                        <img
+                            src="/assets/preview.png"
+                            alt="Word Layouter Preview"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
                     </div>
                     <div style={{
                         position: 'absolute', top: '-40px', left: '-40px',
@@ -121,7 +117,7 @@ const LandingPage: React.FC = () => {
                         <div className="feature-icon"><Table24Regular /></div>
                         <h3>原生文档排版</h3>
                         <p style={{ color: 'var(--text-muted)', marginTop: '12px' }}>
-                            支持 HTML 与 Word 样式的精准转换，一键生成符合规范的标题、表格和列表。
+                            支持AI生成原生排版Word文段，一键生成符合规范的标题、表格和列表。
                         </p>
                     </div>
                     <div className="glass-card feature-item">
