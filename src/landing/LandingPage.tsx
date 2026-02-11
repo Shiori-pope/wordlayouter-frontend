@@ -42,7 +42,6 @@ const LandingPage: React.FC = () => {
                         <a href="#features" className="nav-link">功能特性</a>
                         <a href="#install" className="nav-link">安装教程</a>
                         <a href="https://github.com" className="nav-link"><Share24Regular /></a>
-                        <a href="/taskpane.html" className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.9rem' }}>立即体验</a>
                     </div>
                 </div>
             </nav>
@@ -77,12 +76,12 @@ const LandingPage: React.FC = () => {
                     <a href="#install" className="btn-primary" style={{ fontSize: '1.1rem', padding: '16px 40px' }}>
                         添加至 Word <ArrowRight24Regular style={{ marginLeft: 8 }} />
                     </a>
-                    <button className="glass-card" style={{
+                    <a href="https://www.douyin.com/user/self?from_tab_name=main&modal_id=7605269720782114089" target="_blank" rel="noopener noreferrer" className="glass-card" style={{
                         color: '#fff', padding: '16px 40px', fontSize: '1.1rem',
-                        cursor: 'pointer', transition: 'all 0.3s'
+                        cursor: 'pointer', transition: 'all 0.3s', display: 'inline-block', textDecoration: 'none'
                     }}>
-                        观看视频演练
-                    </button>
+                        视频介绍
+                    </a>
                 </div>
 
                 {/* Floating Preview Image / Icon */}
