@@ -145,27 +145,27 @@ const LandingPage: React.FC = () => {
                         <div className="glass-card" style={{ padding: '24px', display: 'flex', gap: '20px', alignItems: 'center' }}>
                             <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
                             <div>
-                                <h4 style={{ marginBottom: '4px' }}>下载 manifest.xml</h4>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>点击右侧按钮下载插件描述文件。</p>
+                                <h4 style={{ marginBottom: '4px' }}>下载安装包</h4>
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>下载并解压 installer.zip 文件。</p>
                             </div>
-                            <a href="/manifest.xml" download className="btn-primary" style={{ marginLeft: 'auto' }}>
-                                <ArrowDownload24Regular /> 下载
+                            <a href="/assets/installer.zip" download className="btn-primary" style={{ marginLeft: 'auto' }}>
+                                <ArrowDownload24Regular /> 下载安装包
                             </a>
                         </div>
 
                         <div className="glass-card" style={{ padding: '24px', display: 'flex', gap: '20px', alignItems: 'center' }}>
                             <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
                             <div>
-                                <h4 style={{ marginBottom: '4px' }}>在 Word 中插入</h4>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>在 Word 菜单栏选择“插入” - “我的加载项” - “管理我的加载项”。</p>
+                                <h4 style={{ marginBottom: '4px' }}>运行安装脚本</h4>
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>进入解压后的目录，双击运行 <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px' }}>install.bat</code> 即可完成安装。</p>
                             </div>
                         </div>
 
                         <div className="glass-card" style={{ padding: '24px', display: 'flex', gap: '20px', alignItems: 'center' }}>
                             <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
                             <div>
-                                <h4 style={{ marginBottom: '4px' }}>上传并启动</h4>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>选择“上传我的加载项”，选择刚才下载的 manifest.xml 文件即可。</p>
+                                <h4 style={{ marginBottom: '4px' }}>开始使用</h4>
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>打开 Microsoft Word，点击“开始”选项卡，在右侧找到 <span style={{ fontWeight: 'bold' }}>Word Layouter</span> 图标，点击即可使用。</p>
                             </div>
                         </div>
                     </div>
