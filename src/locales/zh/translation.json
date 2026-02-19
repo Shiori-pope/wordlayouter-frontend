@@ -1,0 +1,49 @@
+{
+  "hero": {
+    "title": "让您的文字工作更智慧，更优雅",
+    "subtitle": "Word Layouter是一款为Office用户量身定制的智能插件，集成了最先进的AI模型，助您一键润色、智能排版。",
+    "button": "添加至Word",
+    "videoIntro": "视频介绍",
+    "previewAlt": "Word Layouter 预览"
+  },
+  "nav": {
+    "features": "功能特性",
+    "install": "安装教程",
+    "github": "GitHub"
+  },
+  "features": {
+    "title": "核心功能",
+    "intelligentWriting": {
+      "title": "智能写作与润色",
+      "desc": "基于上下文进行一键扩写、缩写、润色，支持学术、职场、文学等多种语气切换。"
+    },
+    "nativeLayout": {
+      "title": "原生文档排版",
+      "desc": "支持AI生成原生排版Word文段，一键生成符合规范的标题、表格和列表。"
+    },
+    "formulaProcessing": {
+      "title": "数学公式处理",
+      "desc": "自动识别LaTeX公式并转换为Word原生可编辑公式，论文辅助工作的完美搭档。"
+    }
+  },
+  "install": {
+    "title": "如何开始？",
+    "description": "简单几步，即可在您的Word中开启智能创作之旅。",
+    "steps": {
+      "1": {
+        "title": "下载安装包",
+        "desc": "下载并解压installer.zip文件。"
+      },
+      "2": {
+        "title": "运行安装脚本",
+        "desc": "进入解压后的目录，双击运行install.bat即可完成安装。"
+      },
+      "3": {
+        "title": "开始使用",
+        "desc": "打开Microsoft Word，点击“开始”选项卡，在右侧找到Word Layouter图标，点击即可使用。"
+      }
+    },
+    "download": "下载安装包"
+  },
+  "footer": "© 2026 Word Layouter. Powered by advanced AI models."
+}

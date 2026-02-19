@@ -1,0 +1,49 @@
+{
+  "hero": {
+    "title": "あなたのテキストをより賢く、よりエレガントに",
+    "subtitle": "Word Layouterは、Officeユーザーに特化したインテリジェントプラグインで、最先端のAIモデルを統合し、一クリックで磨き、レイアウト、コンテンツ生成を支援します。",
+    "button": "Wordに追加",
+    "videoIntro": "ビデオ紹介",
+    "previewAlt": "Word Layouter プレビュー"
+  },
+  "nav": {
+    "features": "機能",
+    "install": "インストール",
+    "github": "GitHub"
+  },
+  "features": {
+    "title": "コア機能",
+    "intelligentWriting": {
+      "title": "インテリジェントライティングと磨き",
+      "desc": "文脈に基づいて一クリックで拡張、短縮、磨き、学术、職業、文芸などのさまざまなトーンをサポート。"
+    },
+    "nativeLayout": {
+      "title": "ネイティブドキュメントレイアウト",
+      "desc": "AI生成のネイティブレイアウトWordセクションを一クリックで生成し、適切な見出し、テーブル、リストを含みます。"
+    },
+    "formulaProcessing": {
+      "title": "数学公式処理",
+      "desc": "LaTeX公式を自動認識し、編集可能なWordネイティブ公式に変換、論文作業の完璧なパートナー。"
+    }
+  },
+  "install": {
+    "title": "どのように始めますか？",
+    "description": "シンプルなステップで、Wordでのインテリジェントクリエイションの旅を始めましょう。",
+    "steps": {
+      "1": {
+        "title": "インストーラーをダウンロード",
+        "desc": "installer.zipファイルをダウンロードして解凍します。"
+      },
+      "2": {
+        "title": "インストーラーを実行",
+        "desc": "解凍されたディレクトリに入り、install.batをダブルクリックして実行します。"
+      },
+      "3": {
+        "title": "使用を開始",
+        "desc": "Microsoft Wordを開き、「開始」タブをクリックし、リボンの右側にWord Layouterアイコンを見つけてクリックします。"
+      }
+    },
+    "download": "インストーラーをダウンロード"
+  },
+  "footer": "© 2026 Word Layouter. Powered by advanced AI models."
+}

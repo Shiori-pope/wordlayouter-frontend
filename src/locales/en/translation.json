@@ -1,0 +1,49 @@
+{
+  "hero": {
+    "title": "Make Your Text Work Smarter, More Elegantly",
+    "subtitle": "Word Layouter is an intelligent plugin tailored for Office users, integrating advanced AI models to help you polish, layout, and generate content with one click.",
+    "button": "Add to Word",
+    "videoIntro": "Video Introduction",
+    "previewAlt": "Word Layouter Preview"
+  },
+  "nav": {
+    "features": "Features",
+    "install": "Install",
+    "github": "GitHub"
+  },
+  "features": {
+    "title": "Core Features",
+    "intelligentWriting": {
+      "title": "Intelligent Writing and Polishing",
+      "desc": "Expand, shorten, or polish based on context, supporting academic, professional, and literary tones."
+    },
+    "nativeLayout": {
+      "title": "Native Document Layout",
+      "desc": "Generate native Word document sections with one click, including proper headings, tables, and lists."
+    },
+    "formulaProcessing": {
+      "title": "Mathematical Formula Processing",
+      "desc": "Automatically recognize LaTeX formulas and convert them to editable Word native formulas, the perfect companion for thesis work."
+    }
+  },
+  "install": {
+    "title": "How to Get Started?",
+    "description": "Simple steps to start your intelligent creation journey in Word.",
+    "steps": {
+      "1": {
+        "title": "Download Installer",
+        "desc": "Download and unzip the installer.zip file."
+      },
+      "2": {
+        "title": "Run Installer",
+        "desc": "Enter the unzipped directory and double-click to run install.bat."
+      },
+      "3": {
+        "title": "Start Using",
+        "desc": "Open Microsoft Word, click the 'Start' tab, and find the Word Layouter icon in the ribbon."
+      }
+    },
+    "download": "Download Installer"
+  },
+  "footer": "© 2026 Word Layouter. Powered by advanced AI models."
+}

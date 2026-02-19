@@ -142,6 +142,14 @@ module.exports = (env, argv) => {
                         to: 'manifest.xml'
                     },
                     {
+                        from: 'sitemap.xml',
+                        to: 'sitemap.xml'
+                    },
+                    {
+                        from: 'robots.txt',
+                        to: 'robots.txt'
+                    },
+                    {
                         from: 'msal-test.html',
                         to: 'msal-test.html',
                         noErrorOnMissing: true
