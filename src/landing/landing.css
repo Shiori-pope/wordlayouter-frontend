@@ -123,8 +123,95 @@ h1, h2, h3, h4 {
   color: #818cf8;
 }
 
+.landing-container {
+  padding-top: 72px;
+}
+
+/* 平板设备 */
+@media (max-width: 1024px) {
+  .feature-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+  }
+  
+  .feature-item {
+    padding: 24px;
+  }
+  
+  .nav-link {
+    font-size: 0.85rem;
+  }
+}
+
+/* 手机设备 */
 @media (max-width: 768px) {
+  .landing-container {
+    padding-top: 68px;
+  }
+  
   .hero-title {
     font-size: 2.5rem !important;
+    line-height: 1.2 !important;
+    max-width: 100% !important;
+    padding: 0 16px !important;
+    margin-bottom: 16px !important;
+  }
+  
+  .feature-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 40px;
+  }
+  
+  .feature-item {
+    padding: 20px;
+  }
+  
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .nav-link {
+    display: none;
+  }
+  
+  .nav-link-mobile {
+    display: inline-block;
+    font-size: 0.85rem;
+  }
+}
+
+/* 小屏幕手机 */
+@media (max-width: 480px) {
+  .landing-container {
+    padding-top: 64px;
+  }
+  
+  h1 {
+    font-size: 1.8rem !important;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
+  }
+  
+  .hero-title {
+    font-size: 1.8rem !important;
+    margin-bottom: 12px !important;
+    padding: 0 12px !important;
+  }
+  
+  .btn-primary {
+    padding: 12px 20px !important;
+    font-size: 0.9rem !important;
+  }
+  
+  .feature-grid {
+    margin-top: 30px;
+  }
+  
+  section {
+    padding: 60px 16px !important;
   }
 }
