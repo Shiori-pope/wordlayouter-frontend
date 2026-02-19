@@ -12,9 +12,9 @@ const LanguageSwitcher: React.FC = () => {
   return (
     <div style={{
       position: 'fixed',
-      top: '12px',
+      top: '80px',
       right: '16px',
-      zIndex: 101,
+      zIndex: 99,
       display: 'flex',
       gap: '8px',
       flexWrap: 'wrap',
