@@ -350,7 +350,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
                     {/* 自定义模型表单 */}
                     {showCustomForm && (
-                        <div style={{ ...shorthands.padding('12px'), border: '1px dashed #ccc', borderRadius: '8px' }}>
+                        <div style={{ padding: '12px', border: '1px dashed #ccc', borderRadius: '8px' }}>
                             <div className={styles.formRow}>
                                 <div className={styles.formGroup}>
                                     <Label className={styles.formLabel}>模型名称 *</Label>
