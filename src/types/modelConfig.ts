@@ -252,10 +252,11 @@ export function getModelsByProvider(): Record<ModelProvider, ModelConfig[]> {
     const grouped: Record<ModelProvider, ModelConfig[]> = {} as Record<ModelProvider, ModelConfig[]>;
 
     for (const model of models) {
-        if (!grouped[model.provider]) {
-            grouped[model.provider] = [];
+        const provider = model.provider as ModelProvider;
+        if (!grouped[provider]) {
+            grouped[provider] = [];
         }
-        grouped[model.provider].push(model);
+        grouped[provider].push(model);
     }
 
     return grouped;
