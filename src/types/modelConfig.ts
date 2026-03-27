@@ -107,26 +107,27 @@ export const PROVIDER_NAMES: Record<ModelProvider, string> = {
 // 内置模型配置 (仅 DeepSeek + 自定义)
 export const BUILT_IN_MODELS: ModelConfig[] = [
     // DeepSeek - 官方 API 模型
+    // 注意：DeepSeek API max_tokens 限制为 8192
     {
         id: 'deepseek-chat',
-        name: 'DeepSeek V3',
+        name: 'DeepSeek Chat',
         provider: 'deepseek',
         apiUrl: 'https://api.deepseek.com/v1/chat/completions',
         supportsVision: false,
         supportsStreaming: true,
-        maxTokens: 64000,
-        description: 'DeepSeek V3 通用大模型',
+        maxTokens: 8192,
+        description: 'DeepSeek Chat 通用大模型',
         apiKeyStorageKey: PROVIDER_API_KEYS.deepseek,
     },
     {
         id: 'deepseek-reasoner',
-        name: 'DeepSeek R1',
+        name: 'DeepSeek Reasoner',
         provider: 'deepseek',
         apiUrl: 'https://api.deepseek.com/v1/chat/completions',
         supportsVision: false,
         supportsStreaming: true,
-        maxTokens: 64000,
-        description: 'DeepSeek R1 推理模型',
+        maxTokens: 8192,
+        description: 'DeepSeek Reasoner 推理模型',
         apiKeyStorageKey: PROVIDER_API_KEYS.deepseek,
     },
 ];

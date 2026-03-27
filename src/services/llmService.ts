@@ -168,11 +168,14 @@ export async function callDeepSeek(
         apiUrl: 'https://api.deepseek.com/v1/chat/completions',
         supportsVision: false,
         supportsStreaming: true,
-        maxTokens: 4096,
+        maxTokens: 8192,
         description: '',
     };
 
-    const messages = buildMessages(
+    // 确保 max_tokens 不超过限制
+    const maxTokensToUse = Math.min(currentModel.maxTokens, 8192);
+
+    const messages = buildMessagess(
         conversationHistory,
         userMessage,
         context,
@@ -206,7 +209,7 @@ export async function callDeepSeek(
                 model: currentModel.id,
                 messages: messages,
                 temperature: 0.7,
-                max_tokens: currentModel.maxTokens,
+                max_tokens: maxTokensToUse,
             }),
         });
 
@@ -353,9 +356,12 @@ export async function* streamDeepSeek(
         apiUrl: 'https://api.deepseek.com/v1/chat/completions',
         supportsVision: false,
         supportsStreaming: true,
-        maxTokens: 4096,
+        maxTokens: 8192,
         description: '',
     };
+
+    // 确保 max_tokens 不超过限制
+    const maxTokensToUse = Math.min(currentModel.maxTokens, 8192);
 
     const messages = buildMessages(
         conversationHistory,
@@ -393,7 +399,7 @@ export async function* streamDeepSeek(
                 model: currentModel.id,
                 messages: messages,
                 temperature: 0.7,
-                max_tokens: currentModel.maxTokens,
+                max_tokens: maxTokensToUse,
                 stream: true,
             }),
         });
@@ -612,6 +618,9 @@ export async function generateStylesFromDescription(
     try {
         let responseText: string;
 
+        // 确保 max_tokens 不超过限制
+        const maxTokensToUse = Math.min(model.maxTokens, 8192);
+
         if (model.provider === 'anthropic') {
             responseText = await callAnthropicApi(model, apiKey, messages);
         } else {
@@ -625,7 +634,7 @@ export async function generateStylesFromDescription(
                     model: model.id,
                     messages: messages,
                     temperature: 0.3,
-                    max_tokens: model.maxTokens,
+                    max_tokens: maxTokensToUse,
                 }),
             });
 
