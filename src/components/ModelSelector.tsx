@@ -15,20 +15,18 @@ import {
   DialogSurface,
   DialogTitle,
   DialogBody,
-  DialogActions,
   DialogContent,
-  Badge,
+  DialogActions,
+  DialogTrigger as DialogActionsTrigger,
 } from '@fluentui/react-components';
 import {
   Bot24Regular,
-  Image24Regular,
-  Key24Regular,
-  Checkmark24Regular,
   Settings24Regular,
+  Checkmark24Regular,
 } from '@fluentui/react-icons';
 import {
   ModelConfig,
-  getAllModels,
+  getUserAddedModels,
   getActiveModel,
   setActiveModelId,
   getApiKey,
@@ -39,7 +37,7 @@ import {
 const useStyles = makeStyles({
   triggerBtn: {
     minWidth: 'auto',
-    maxWidth: '100px',
+    maxWidth: '120px',
     ...shorthands.padding('4px', '8px'),
     ...shorthands.borderRadius('4px'),
     fontSize: '12px',
@@ -52,73 +50,47 @@ const useStyles = makeStyles({
     },
   },
   popoverContent: {
-    width: '320px',
-    maxHeight: '450px',
+    width: '180px',
+    maxHeight: '300px',
     overflowY: 'auto',
-    ...shorthands.padding('12px'),
+    ...shorthands.padding('8px'),
   },
-  popoverHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '12px',
-    paddingBottom: '8px',
-    ...shorthands.borderBottom('1px', 'solid', tokens.colorNeutralStroke1),
-  },
-  modelCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    ...shorthands.padding('12px'),
-    ...shorthands.borderRadius('8px'),
-    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke1),
-    marginBottom: '8px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    ':hover': {
-      background: tokens.colorNeutralBackground1Hover,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    },
-  },
-  modelCardActive: {
-    ...shorthands.border('2px', 'solid', '#667eea'),
-    background: 'rgba(102, 126, 234, 0.05)',
-  },
-  modelCardDisabled: {
-    opacity: 0.6,
-    cursor: 'not-allowed',
-  },
-  modelHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '4px',
-  },
-  modelName: {
+  modelItem: {
     display: 'flex',
     alignItems: 'center',
     ...shorthands.gap('8px'),
-    fontWeight: '600',
+    ...shorthands.padding('8px', '10px'),
+    ...shorthands.borderRadius('6px'),
+    cursor: 'pointer',
+    transition: 'background 0.15s ease',
+    fontSize: '13px',
+    ':hover': {
+      background: tokens.colorNeutralBackground1Hover,
+    },
   },
-  modelBadges: {
-    display: 'flex',
-    ...shorthands.gap('4px'),
+  modelItemActive: {
+    background: 'rgba(102, 126, 234, 0.1)',
+    fontWeight: '500',
   },
-  modelDescription: {
+  modelName: {
+    flex: 1,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  emptyText: {
     fontSize: '12px',
-    color: tokens.colorNeutralForeground3,
-    marginBottom: '4px',
+    color: '#888',
+    textAlign: 'center',
+    padding: '16px',
   },
-  modelStatus: {
-    display: 'flex',
-    alignItems: 'center',
-    ...shorthands.gap('4px'),
-    fontSize: '11px',
-  },
-  statusOk: {
-    color: '#22c55e',
-  },
-  statusError: {
-    color: '#ef4444',
+  emptyLink: {
+    fontSize: '12px',
+    color: '#667eea',
+    cursor: 'pointer',
+    textDecoration: 'underline',
+    marginTop: '8px',
+    display: 'inline-block',
   },
   formField: {
     marginBottom: '12px',
@@ -129,24 +101,14 @@ const useStyles = makeStyles({
     fontSize: '12px',
     fontWeight: '500',
   },
-  providerSection: {
-    marginBottom: '16px',
-  },
-  providerTitle: {
-    fontSize: '11px',
-    fontWeight: '600',
-    color: tokens.colorNeutralForeground3,
-    textTransform: 'uppercase',
-    marginBottom: '8px',
-    display: 'block',
-  },
 });
 
 interface ModelSelectorProps {
   onModelChange?: (model: ModelConfig) => void;
+  onOpenSettings?: () => void;
 }
 
-const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange }) => {
+const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange, onOpenSettings }) => {
   const styles = useStyles();
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [activeModel, setActiveModel] = useState<ModelConfig | null>(null);
@@ -160,10 +122,18 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange }) => {
   }, []);
 
   const loadModels = () => {
-    const allModels = getAllModels();
-    setModels(allModels);
+    const userModels = getUserAddedModels();
+    setModels(userModels);
     const active = getActiveModel();
-    setActiveModel(active);
+    // 如果当前激活的模型不在用户列表中，设为 null
+    if (userModels.find(m => m.id === active.id)) {
+      setActiveModel(active);
+    } else {
+      setActiveModel(userModels.length > 0 ? userModels[0] : null);
+      if (userModels.length > 0) {
+        setActiveModelId(userModels[0].id);
+      }
+    }
   };
 
   const handleSelectModel = (model: ModelConfig) => {
@@ -191,7 +161,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange }) => {
   const handleSaveApiKey = () => {
     if (editingModel?.apiKeyStorageKey) {
       saveApiKey(editingModel.apiKeyStorageKey, apiKeyInput);
-      // 如果是首次配置，自动选择该模型
+      // 如果是首次配置且有输入，自动选择该模型
       if (!hasApiKey(editingModel) && apiKeyInput) {
         setActiveModelId(editingModel.id);
         setActiveModel(editingModel);
@@ -202,19 +172,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange }) => {
     setIsKeyDialogOpen(false);
   };
 
-  // 按 provider 分组
-  const groupedModels = models.reduce((acc, model) => {
-    const provider = model.provider;
-    if (!acc[provider]) acc[provider] = [];
-    acc[provider].push(model);
-    return acc;
-  }, {} as Record<string, ModelConfig[]>);
-
-  const providerNames: Record<string, string> = {
-    deepseek: 'DeepSeek',
-    openai: 'OpenAI',
-    anthropic: 'Anthropic',
-    custom: '自定义',
+  const handleOpenSettings = () => {
+    setIsOpen(false);
+    onOpenSettings?.();
   };
 
   return (
@@ -227,62 +187,47 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange }) => {
             size="small"
             appearance="subtle"
           >
-            {activeModel?.name || '模型'}
+            {activeModel?.name || '选择模型'}
           </Button>
         </PopoverTrigger>
         <PopoverSurface>
           <div className={styles.popoverContent}>
-            <div className={styles.popoverHeader}>
-              <Text weight="semibold">选择模型</Text>
-            </div>
-
-            {Object.entries(groupedModels).map(([provider, providerModels]) => (
-              <div key={provider} className={styles.providerSection}>
-                <Text className={styles.providerTitle}>{providerNames[provider] || provider}</Text>
-                {providerModels.map((model) => {
-                  const hasKey = !model.apiKeyStorageKey || hasApiKey(model);
-                  const isActive = activeModel?.id === model.id;
-
-                  return (
-                    <div
-                      key={model.id}
-                      className={`${styles.modelCard} ${isActive ? styles.modelCardActive : ''}`}
-                      onClick={() => handleSelectModel(model)}
-                    >
-                      <div className={styles.modelHeader}>
-                        <div className={styles.modelName}>
-                          <span>{model.name}</span>
-                          <div className={styles.modelBadges}>
-                            {model.supportsVision && (
-                              <Badge appearance="outline" size="small" color="informative">
-                                <Image24Regular style={{ width: 12, height: 12 }} />
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {isActive && <Checkmark24Regular style={{ color: '#667eea' }} />}
-                          <Button
-                            icon={<Key24Regular />}
-                            size="small"
-                            appearance="subtle"
-                            onClick={(e) => handleConfigureKey(model, e)}
-                          />
-                        </div>
-                      </div>
-                      <Text className={styles.modelDescription}>{model.description}</Text>
-                      <div className={styles.modelStatus}>
-                        {hasKey ? (
-                          <span className={styles.statusOk}>API Key 已配置</span>
-                        ) : (
-                          <span className={styles.statusError}>需要配置 API Key</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            {models.length === 0 ? (
+              <div className={styles.emptyText}>
+                尚未添加模型
+                <br />
+                <span className={styles.emptyLink} onClick={handleOpenSettings}>
+                  去设置页面添加
+                </span>
               </div>
-            ))}
+            ) : (
+              models.map((model) => {
+                const isActive = activeModel?.id === model.id;
+
+                return (
+                  <div
+                    key={model.id}
+                    className={`${styles.modelItem} ${isActive ? styles.modelItemActive : ''}`}
+                    onClick={() => handleSelectModel(model)}
+                  >
+                    <Text style={{ fontSize: '10px', color: isActive ? '#667eea' : '#ccc' }}>
+                      {isActive ? '●' : '○'}
+                    </Text>
+                    <span className={styles.modelName}>{model.name}</span>
+                    {isActive && <Checkmark24Regular style={{ width: 14, height: 14, color: '#667eea' }} />}
+                    {model.apiKeyStorageKey && (
+                      <Button
+                        icon={<Settings24Regular style={{ width: 12, height: 12 }} />}
+                        size="small"
+                        appearance="subtle"
+                        onClick={(e) => handleConfigureKey(model, e)}
+                        style={{ minWidth: 20, width: 20, height: 20 }}
+                      />
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </PopoverSurface>
       </Popover>
@@ -311,9 +256,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange }) => {
               </Text>
             </DialogContent>
             <DialogActions>
-              <DialogTrigger disableButtonEnhancement>
+              <DialogActionsTrigger disableButtonEnhancement>
                 <Button appearance="secondary">取消</Button>
-              </DialogTrigger>
+              </DialogActionsTrigger>
               <Button appearance="primary" onClick={handleSaveApiKey}>
                 保存
               </Button>

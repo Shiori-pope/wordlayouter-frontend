@@ -819,7 +819,7 @@ const App: React.FC = () => {
                 {/* Controls Row - 保留在主界面，位于输入区上方 */}
                 <div className={styles.inputArea}>
                     <div className={styles.controlsRow}>
-                        <ModelSelector onModelChange={handleModelChange} />
+                        <ModelSelector onModelChange={handleModelChange} onOpenSettings={() => setShowSettings(true)} />
                         <LayoutPresetPanel onPresetChange={handlePresetChange} />
                         <FileUploadButton
                             currentModel={activeModel}

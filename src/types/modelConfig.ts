@@ -484,6 +484,7 @@ export const BUILT_IN_MODELS: ModelConfig[] = [
 // localStorage keys
 export const MODEL_STORAGE_KEYS = {
     CUSTOM_MODELS: 'word-ai-custom-models',
+    USER_ADDED_MODELS: 'word-ai-user-added-models',
     ACTIVE_MODEL: 'word-ai-active-model',
     API_KEYS: 'word-ai-api-keys',
 };
@@ -600,4 +601,51 @@ export function getModelsByProvider(): Record<ModelProvider, ModelConfig[]> {
     }
 
     return grouped;
+}
+
+/**
+ * 获取用户已添加的模型（用于 ModelSelector 显示）
+ */
+export function getUserAddedModels(): ModelConfig[] {
+    try {
+        const stored = localStorage.getItem(MODEL_STORAGE_KEYS.USER_ADDED_MODELS);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * 添加模型到用户列表
+ */
+export function addModelToUserList(model: ModelConfig): void {
+    const models = getUserAddedModels();
+    if (!models.find(m => m.id === model.id)) {
+        models.push(model);
+        localStorage.setItem(MODEL_STORAGE_KEYS.USER_ADDED_MODELS, JSON.stringify(models));
+    }
+}
+
+/**
+ * 从用户列表移除模型
+ */
+export function removeModelFromUserList(modelId: string): void {
+    const models = getUserAddedModels().filter(m => m.id !== modelId);
+    localStorage.setItem(MODEL_STORAGE_KEYS.USER_ADDED_MODELS, JSON.stringify(models));
+}
+
+/**
+ * 检查模型是否已在用户列表
+ */
+export function isModelInUserList(modelId: string): boolean {
+    return !!getUserAddedModels().find(m => m.id === modelId);
+}
+
+/**
+ * 获取可添加的内置模型（排除已添加的）
+ */
+export function getAvailableModelsForAdd(): ModelConfig[] {
+    const userAdded = getUserAddedModels();
+    const userAddedIds = new Set(userAdded.map(m => m.id));
+    return BUILT_IN_MODELS.filter(m => !userAddedIds.has(m.id));
 }
