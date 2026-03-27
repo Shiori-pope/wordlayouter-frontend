@@ -238,6 +238,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             apiUrl: customModelUrl.trim(),
             apiKeyStorageKey: `custom-api-key-${Date.now()}`,
             supportsVision: false,
+            supportsStreaming: true,
+            maxTokens: 4096,
         };
 
         // 保存 API Key
