@@ -22,9 +22,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@azure/msal-browser": "^3.30.0",
-    "@azure/msal-common": "^16.0.3",
-    "@azure/msal-react": "^2.2.0",
     "@fluentui/react": "^8.110.0",
     "@fluentui/react-components": "^9.40.0",
     "axios": "^1.6.0",

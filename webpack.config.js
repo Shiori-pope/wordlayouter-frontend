@@ -21,10 +21,7 @@ module.exports = (env, argv) => {
     return {
         entry: {
             taskpane: './src/taskpane/index.tsx',
-            commands: './src/commands/commands.ts',
-            redirect: './src/auth/redirect.ts',
-            diagnostic: './src/auth/diagnostic.ts',
-            landing: './src/landing/index.tsx'
+            commands: './src/commands/commands.ts'
         },
         output: {
             path: path.resolve(__dirname, 'dist'),
@@ -77,18 +74,7 @@ module.exports = (env, argv) => {
             new webpack.DefinePlugin({
                 'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || (isProduction ? 'production' : 'development')),
                 'process.env.REACT_APP_SHOW_DEBUG': JSON.stringify(process.env.REACT_APP_SHOW_DEBUG || 'false'),
-                'process.env.REACT_APP_PUBLIC_URL': JSON.stringify(process.env.REACT_APP_PUBLIC_URL || 'https://wordlayouter.top'),
-                'process.env.REACT_APP_API_BASE': JSON.stringify(process.env.REACT_APP_API_BASE || 'https://api.wordlayouter.top'),
-                'process.env.REACT_APP_AZURE_CLIENT_ID': JSON.stringify(process.env.REACT_APP_AZURE_CLIENT_ID || ''),
-                'process.env.REACT_APP_AZURE_TENANT_ID': JSON.stringify(process.env.REACT_APP_AZURE_TENANT_ID || ''),
-                'process.env.REACT_APP_AZURE_SCOPE': JSON.stringify(process.env.REACT_APP_AZURE_SCOPE || ''),
-                'DEEPSEEK_API_KEY': JSON.stringify(process.env.DEEPSEEK_API_KEY || ''),
-                'DEEPSEEK_API_URL': JSON.stringify(process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions')
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/landing/landing.html',
-                filename: 'index.html',
-                chunks: ['landing']
+                'process.env.REACT_APP_PUBLIC_URL': JSON.stringify(process.env.REACT_APP_PUBLIC_URL || 'https://wordlayouter.top')
             }),
             new HtmlWebpackPlugin({
                 template: './src/taskpane/taskpane.html',
@@ -99,36 +85,6 @@ module.exports = (env, argv) => {
                 template: './src/commands/commands.html',
                 filename: 'commands.html',
                 chunks: ['commands']
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/auth/redirect.html',
-                filename: 'redirect.html',
-                chunks: ['redirect']
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/auth/auth.html',
-                filename: 'auth.html',
-                chunks: []
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/auth/dialog.html',
-                filename: 'dialog.html',
-                chunks: []  // 纯静态页面，不需要 JS bundle
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/auth/fallbackAuth.html',
-                filename: 'fallbackAuth.html',
-                chunks: []  // 使用 CDN 加载 MSAL
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/auth/diagnostic.html',
-                filename: 'diagnostic.html',
-                chunks: ['diagnostic']  // 使用本地打包的 MSAL
-            }),
-            new HtmlWebpackPlugin({
-                template: './src/auth/office-auth-redirect.html',
-                filename: 'office-auth-redirect.html',
-                chunks: []  // 纯静态页面，用于 Office 弹窗认证回调
             }),
             new CopyWebpackPlugin({
                 patterns: [
@@ -149,11 +105,6 @@ module.exports = (env, argv) => {
                         from: 'robots.txt',
                         to: 'robots.txt'
                     },
-                    {
-                        from: 'msal-test.html',
-                        to: 'msal-test.html',
-                        noErrorOnMissing: true
-                    }
                 ]
             })
         ],

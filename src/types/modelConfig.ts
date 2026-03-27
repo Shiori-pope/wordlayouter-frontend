@@ -2,168 +2,602 @@
  * 模型配置类型定义
  */
 
-export type ModelProvider = 'deepseek' | 'openai' | 'anthropic' | 'custom';
+export type ModelProvider =
+    | 'openai'
+    | 'anthropic'
+    | 'google'
+    | 'deepseek'
+    | 'siliconflow'
+    | 'aliyun'
+    | 'zhipu'
+    | 'baidu'
+    | 'tencent'
+    | 'doubao'
+    | 'moonshot'
+    | 'minimax'
+    | 'groq'
+    | 'mistral'
+    | 'cohere'
+    | 'perplexity'
+    | 'openrouter'
+    | 'ollama'
+    | 'lmstudio'
+    | 'bedrock'
+    | 'azure'
+    | 'custom';
 
 export interface ModelConfig {
-  id: string;
-  name: string;
-  provider: ModelProvider;
-  apiUrl: string;
-  supportsVision: boolean;
-  supportsStreaming: boolean;
-  maxTokens: number;
-  description: string;
-  apiKeyStorageKey?: string;
+    id: string;
+    name: string;
+    provider: ModelProvider;
+    apiUrl: string;
+    supportsVision: boolean;
+    supportsStreaming: boolean;
+    maxTokens: number;
+    description: string;
+    apiKeyStorageKey?: string;
 }
+
+// API Key storage key prefix for each provider
+export const PROVIDER_API_KEYS: Record<ModelProvider, string> = {
+    openai: 'word-ai-openai-key',
+    anthropic: 'word-ai-anthropic-key',
+    google: 'word-ai-google-key',
+    deepseek: 'word-ai-deepseek-key',
+    siliconflow: 'word-ai-siliconflow-key',
+    aliyun: 'word-ai-aliyun-key',
+    zhipu: 'word-ai-zhipu-key',
+    baidu: 'word-ai-baidu-key',
+    tencent: 'word-ai-tencent-key',
+    doubao: 'word-ai-doubao-key',
+    moonshot: 'word-ai-moonshot-key',
+    minimax: 'word-ai-minimax-key',
+    groq: 'word-ai-groq-key',
+    mistral: 'word-ai-mistral-key',
+    cohere: 'word-ai-cohere-key',
+    perplexity: 'word-ai-perplexity-key',
+    openrouter: 'word-ai-openrouter-key',
+    ollama: 'word-ai-ollama-key',
+    lmstudio: 'word-ai-lmstudio-key',
+    bedrock: 'word-ai-bedrock-key',
+    azure: 'word-ai-azure-key',
+    custom: 'word-ai-custom-key',
+};
+
+// Provider display names
+export const PROVIDER_NAMES: Record<ModelProvider, string> = {
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    google: 'Google',
+    deepseek: 'DeepSeek',
+    siliconflow: '硅基流动',
+    aliyun: '阿里云通义',
+    zhipu: '智谱 AI',
+    baidu: '百度文心',
+    tencent: '腾讯混元',
+    doubao: '字节豆包',
+    moonshot: 'Moonshot',
+    minimax: 'MiniMax',
+    groq: 'Groq',
+    mistral: 'Mistral',
+    cohere: 'Cohere',
+    perplexity: 'Perplexity',
+    openrouter: 'OpenRouter',
+    ollama: 'Ollama',
+    lmstudio: 'LM Studio',
+    bedrock: 'AWS Bedrock',
+    azure: 'Azure OpenAI',
+    custom: '自定义',
+};
 
 // 内置模型配置
 export const BUILT_IN_MODELS: ModelConfig[] = [
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek Chat',
-    provider: 'deepseek',
-    apiUrl: 'https://api.deepseek.com/v1/chat/completions',
-    supportsVision: false,
-    supportsStreaming: true,
-    maxTokens: 4096,
-    description: '高性价比通用模型',
-    apiKeyStorageKey: 'word-ai-deepseek-key',
-  },
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    provider: 'openai',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    supportsVision: true,
-    supportsStreaming: true,
-    maxTokens: 4096,
-    description: '支持图片分析的多模态模型',
-    apiKeyStorageKey: 'word-ai-openai-key',
-  },
-  {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'openai',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    supportsVision: true,
-    supportsStreaming: true,
-    maxTokens: 4096,
-    description: '轻量级多模态模型',
-    apiKeyStorageKey: 'word-ai-openai-key',
-  },
-  {
-    id: 'claude-3-5-sonnet-20241022',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'anthropic',
-    apiUrl: 'https://api.anthropic.com/v1/messages',
-    supportsVision: true,
-    supportsStreaming: true,
-    maxTokens: 4096,
-    description: '支持图片分析的高级模型',
-    apiKeyStorageKey: 'word-ai-anthropic-key',
-  },
+    // OpenAI
+    {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        provider: 'openai',
+        apiUrl: 'https://api.openai.com/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '支持图片分析的多模态模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.openai,
+    },
+    {
+        id: 'gpt-4o-mini',
+        name: 'GPT-4o Mini',
+        provider: 'openai',
+        apiUrl: 'https://api.openai.com/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '轻量级多模态模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.openai,
+    },
+    {
+        id: 'gpt-4-turbo',
+        name: 'GPT-4 Turbo',
+        provider: 'openai',
+        apiUrl: 'https://api.openai.com/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '高性能 GPT-4 模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.openai,
+    },
+    // Anthropic
+    {
+        id: 'claude-3-5-sonnet-20241022',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'anthropic',
+        apiUrl: 'https://api.anthropic.com/v1/messages',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '支持图片分析的高级模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.anthropic,
+    },
+    {
+        id: 'claude-3-5-haiku-20241022',
+        name: 'Claude 3.5 Haiku',
+        provider: 'anthropic',
+        apiUrl: 'https://api.anthropic.com/v1/messages',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '快速响应的轻量级模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.anthropic,
+    },
+    {
+        id: 'claude-3-opus',
+        name: 'Claude 3 Opus',
+        provider: 'anthropic',
+        apiUrl: 'https://api.anthropic.com/v1/messages',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '最强大的 Claude 3 模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.anthropic,
+    },
+    // Google
+    {
+        id: 'gemini-1.5-pro',
+        name: 'Gemini 1.5 Pro',
+        provider: 'google',
+        apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 8192,
+        description: 'Google 多模态大模型，支持长上下文',
+        apiKeyStorageKey: PROVIDER_API_KEYS.google,
+    },
+    {
+        id: 'gemini-1.5-flash',
+        name: 'Gemini 1.5 Flash',
+        provider: 'google',
+        apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 8192,
+        description: '快速多模态模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.google,
+    },
+    {
+        id: 'gemini-1.5-flash-8b',
+        name: 'Gemini 1.5 Flash-8B',
+        provider: 'google',
+        apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 8192,
+        description: '极速轻量级模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.google,
+    },
+    // DeepSeek
+    {
+        id: 'deepseek-chat',
+        name: 'DeepSeek Chat',
+        provider: 'deepseek',
+        apiUrl: 'https://api.deepseek.com/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '高性价比通用模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.deepseek,
+    },
+    {
+        id: 'deepseek-coder',
+        name: 'DeepSeek Coder',
+        provider: 'deepseek',
+        apiUrl: 'https://api.deepseek.com/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '代码生成优化模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.deepseek,
+    },
+    // 硅基流动 (SiliconFlow) - OpenAI 兼容
+    {
+        id: 'siliconflow-qwen2.5-72b',
+        name: 'Qwen2.5-72B',
+        provider: 'siliconflow',
+        apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '开源大模型 (阿里云)',
+        apiKeyStorageKey: PROVIDER_API_KEYS.siliconflow,
+    },
+    {
+        id: 'siliconflow-yi-1.5-34b',
+        name: 'Yi-1.5-34B',
+        provider: 'siliconflow',
+        apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '零一万物大模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.siliconflow,
+    },
+    {
+        id: 'siliconflow-llama3.1-70b',
+        name: 'Llama 3.1-70B',
+        provider: 'siliconflow',
+        apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Meta 开源大模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.siliconflow,
+    },
+    // 阿里云通义
+    {
+        id: 'qwen-turbo',
+        name: 'Qwen Turbo',
+        provider: 'aliyun',
+        apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '阿里云快速模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.aliyun,
+    },
+    {
+        id: 'qwen-plus',
+        name: 'Qwen Plus',
+        provider: 'aliyun',
+        apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '阿里云高性能模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.aliyun,
+    },
+    {
+        id: 'qwen-max',
+        name: 'Qwen Max',
+        provider: 'aliyun',
+        apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '阿里云最强模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.aliyun,
+    },
+    // 智谱 AI
+    {
+        id: 'glm-4',
+        name: 'GLM-4',
+        provider: 'zhipu',
+        apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '智谱 AI 基座模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.zhipu,
+    },
+    {
+        id: 'glm-4v',
+        name: 'GLM-4V',
+        provider: 'zhipu',
+        apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '智谱 AI 多模态模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.zhipu,
+    },
+    {
+        id: 'glm-3-turbo',
+        name: 'GLM-3 Turbo',
+        provider: 'zhipu',
+        apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '智谱 AI 快速模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.zhipu,
+    },
+    // Moonshot
+    {
+        id: 'moonshot-v1-8k',
+        name: 'Moonshot V1-8K',
+        provider: 'moonshot',
+        apiUrl: 'https://api.moonshot.cn/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Moonshot AI 模型 (8K上下文)',
+        apiKeyStorageKey: PROVIDER_API_KEYS.moonshot,
+    },
+    {
+        id: 'moonshot-v1-32k',
+        name: 'Moonshot V1-32K',
+        provider: 'moonshot',
+        apiUrl: 'https://api.moonshot.cn/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Moonshot AI 模型 (32K上下文)',
+        apiKeyStorageKey: PROVIDER_API_KEYS.moonshot,
+    },
+    {
+        id: 'moonshot-v1-128k',
+        name: 'Moonshot V1-128K',
+        provider: 'moonshot',
+        apiUrl: 'https://api.moonshot.cn/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Moonshot AI 模型 (128K上下文)',
+        apiKeyStorageKey: PROVIDER_API_KEYS.moonshot,
+    },
+    // Groq
+    {
+        id: 'groq-llama3.1-70b',
+        name: 'Llama 3.1-70B (Groq)',
+        provider: 'groq',
+        apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '极速开源模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.groq,
+    },
+    {
+        id: 'groq-llama3.1-8b',
+        name: 'Llama 3.1-8B (Groq)',
+        provider: 'groq',
+        apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '极速轻量开源模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.groq,
+    },
+    {
+        id: 'groq-mixtral-8x7b',
+        name: 'Mixtral 8x7B (Groq)',
+        provider: 'groq',
+        apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Mistral 开源 mixture 模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.groq,
+    },
+    // Mistral
+    {
+        id: 'mistral-large',
+        name: 'Mistral Large',
+        provider: 'mistral',
+        apiUrl: 'https://api.mistral.ai/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Mistral 最强模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.mistral,
+    },
+    {
+        id: 'mistral-small',
+        name: 'Mistral Small',
+        provider: 'mistral',
+        apiUrl: 'https://api.mistral.ai/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Mistral 轻量模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.mistral,
+    },
+    // Perplexity
+    {
+        id: 'perplexity-sonar',
+        name: 'Sonar',
+        provider: 'perplexity',
+        apiUrl: 'https://api.perplexity.ai/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Perplexity 在线搜索模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.perplexity,
+    },
+    {
+        id: 'perplexity-sonar-pro',
+        name: 'Sonar Pro',
+        provider: 'perplexity',
+        apiUrl: 'https://api.perplexity.ai/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Perplexity 高质量搜索模型',
+        apiKeyStorageKey: PROVIDER_API_KEYS.perplexity,
+    },
+    // OpenRouter
+    {
+        id: 'openrouter-anthropic-sonnet',
+        name: 'Claude 3.5 Sonnet (OR)',
+        provider: 'openrouter',
+        apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '通过 OpenRouter 访问',
+        apiKeyStorageKey: PROVIDER_API_KEYS.openrouter,
+    },
+    {
+        id: 'openrouter-openai-gpt-4o',
+        name: 'GPT-4o (OR)',
+        provider: 'openrouter',
+        apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
+        supportsVision: true,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: '通过 OpenRouter 访问',
+        apiKeyStorageKey: PROVIDER_API_KEYS.openrouter,
+    },
+    // 本地模型
+    {
+        id: 'ollama-local',
+        name: 'Ollama 本地模型',
+        provider: 'ollama',
+        apiUrl: 'http://localhost:11434/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'Ollama 本地运行模型 (需自行配置)',
+        apiKeyStorageKey: PROVIDER_API_KEYS.ollama,
+    },
+    {
+        id: 'lmstudio-local',
+        name: 'LM Studio 本地模型',
+        provider: 'lmstudio',
+        apiUrl: 'http://localhost:1234/v1/chat/completions',
+        supportsVision: false,
+        supportsStreaming: true,
+        maxTokens: 4096,
+        description: 'LM Studio 本地运行模型 (需自行配置)',
+        apiKeyStorageKey: PROVIDER_API_KEYS.lmstudio,
+    },
 ];
 
 // localStorage keys
 export const MODEL_STORAGE_KEYS = {
-  CUSTOM_MODELS: 'word-ai-custom-models',
-  ACTIVE_MODEL: 'word-ai-active-model',
-  API_KEYS: 'word-ai-api-keys',
+    CUSTOM_MODELS: 'word-ai-custom-models',
+    ACTIVE_MODEL: 'word-ai-active-model',
+    API_KEYS: 'word-ai-api-keys',
 };
 
 /**
  * 获取所有模型（内置 + 自定义）
  */
 export function getAllModels(): ModelConfig[] {
-  const customModels = getCustomModels();
-  return [...BUILT_IN_MODELS, ...customModels];
+    const customModels = getCustomModels();
+    return [...BUILT_IN_MODELS, ...customModels];
 }
 
 /**
  * 获取自定义模型
  */
 export function getCustomModels(): ModelConfig[] {
-  try {
-    const stored = localStorage.getItem(MODEL_STORAGE_KEYS.CUSTOM_MODELS);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+    try {
+        const stored = localStorage.getItem(MODEL_STORAGE_KEYS.CUSTOM_MODELS);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
 }
 
 /**
  * 保存自定义模型
  */
 export function saveCustomModel(model: ModelConfig): void {
-  const models = getCustomModels();
-  const existingIndex = models.findIndex(m => m.id === model.id);
-  if (existingIndex >= 0) {
-    models[existingIndex] = model;
-  } else {
-    models.push(model);
-  }
-  localStorage.setItem(MODEL_STORAGE_KEYS.CUSTOM_MODELS, JSON.stringify(models));
+    const models = getCustomModels();
+    const existingIndex = models.findIndex(m => m.id === model.id);
+    if (existingIndex >= 0) {
+        models[existingIndex] = model;
+    } else {
+        models.push(model);
+    }
+    localStorage.setItem(MODEL_STORAGE_KEYS.CUSTOM_MODELS, JSON.stringify(models));
 }
 
 /**
  * 删除自定义模型
  */
 export function deleteCustomModel(modelId: string): void {
-  const models = getCustomModels().filter(m => m.id !== modelId);
-  localStorage.setItem(MODEL_STORAGE_KEYS.CUSTOM_MODELS, JSON.stringify(models));
+    const models = getCustomModels().filter(m => m.id !== modelId);
+    localStorage.setItem(MODEL_STORAGE_KEYS.CUSTOM_MODELS, JSON.stringify(models));
 }
 
 /**
  * 获取当前激活的模型 ID
  */
 export function getActiveModelId(): string {
-  return localStorage.getItem(MODEL_STORAGE_KEYS.ACTIVE_MODEL) || 'deepseek-chat';
+    return localStorage.getItem(MODEL_STORAGE_KEYS.ACTIVE_MODEL) || 'deepseek-chat';
 }
 
 /**
  * 设置当前激活的模型
  */
 export function setActiveModelId(modelId: string): void {
-  localStorage.setItem(MODEL_STORAGE_KEYS.ACTIVE_MODEL, modelId);
+    localStorage.setItem(MODEL_STORAGE_KEYS.ACTIVE_MODEL, modelId);
 }
 
 /**
  * 获取当前激活的模型
  */
 export function getActiveModel(): ModelConfig {
-  const activeId = getActiveModelId();
-  return getAllModels().find(m => m.id === activeId) || BUILT_IN_MODELS[0];
+    const activeId = getActiveModelId();
+    return getAllModels().find(m => m.id === activeId) || BUILT_IN_MODELS[0];
 }
 
 /**
  * 获取 API Key
  */
 export function getApiKey(storageKey: string): string {
-  try {
-    const keys = JSON.parse(localStorage.getItem(MODEL_STORAGE_KEYS.API_KEYS) || '{}');
-    return keys[storageKey] || '';
-  } catch {
-    return '';
-  }
+    try {
+        const keys = JSON.parse(localStorage.getItem(MODEL_STORAGE_KEYS.API_KEYS) || '{}');
+        return keys[storageKey] || '';
+    } catch {
+        return '';
+    }
 }
 
 /**
  * 保存 API Key
  */
 export function saveApiKey(storageKey: string, apiKey: string): void {
-  try {
-    const keys = JSON.parse(localStorage.getItem(MODEL_STORAGE_KEYS.API_KEYS) || '{}');
-    keys[storageKey] = apiKey;
-    localStorage.setItem(MODEL_STORAGE_KEYS.API_KEYS, JSON.stringify(keys));
-  } catch {
-    // ignore
-  }
+    try {
+        const keys = JSON.parse(localStorage.getItem(MODEL_STORAGE_KEYS.API_KEYS) || '{}');
+        keys[storageKey] = apiKey;
+        localStorage.setItem(MODEL_STORAGE_KEYS.API_KEYS, JSON.stringify(keys));
+    } catch {
+        // ignore
+    }
 }
 
 /**
  * 检查模型是否有可用的 API Key
  */
 export function hasApiKey(model: ModelConfig): boolean {
-  if (!model.apiKeyStorageKey) return false;
-  return !!getApiKey(model.apiKeyStorageKey);
+    if (!model.apiKeyStorageKey) return false;
+    return !!getApiKey(model.apiKeyStorageKey);
+}
+
+/**
+ * 按提供商分组获取模型
+ */
+export function getModelsByProvider(): Record<ModelProvider, ModelConfig[]> {
+    const models = getAllModels();
+    const grouped: Record<ModelProvider, ModelConfig[]> = {} as Record<ModelProvider, ModelConfig[]>;
+
+    for (const model of models) {
+        if (!grouped[model.provider]) {
+            grouped[model.provider] = [];
+        }
+        grouped[model.provider].push(model);
+    }
+
+    return grouped;
 }

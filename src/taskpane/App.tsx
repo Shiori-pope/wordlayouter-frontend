@@ -31,7 +31,6 @@ import {
     Settings24Regular,
 } from '@fluentui/react-icons';
 import { streamDeepSeek } from '../services/deepseekService';
-import { authService, isAuthenticated } from '../services/authService';
 import {
     isHtmlFormat,
     containsMathFormula,
@@ -42,8 +41,6 @@ import LayoutPresetPanel from '../components/LayoutPresetPanel';
 import ModelSelector from '../components/ModelSelector';
 import SettingsPanel from '../components/SettingsPanel';
 import { FileUploadButton, FileStrip } from '../components/FileUploadPanel';
-import { AuthPanel } from '../components/AuthPanel';
-import { UserPanel } from '../components/UserPanel';
 import { LayoutPreset, getActivePreset, setActivePresetId } from '../types/layoutPreset';
 import { ModelConfig, getActiveModel } from '../types/modelConfig';
 import { ParsedFile } from '../utils/fileParser';
@@ -347,11 +344,6 @@ const App: React.FC = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const streamingEndRef = useRef<HTMLDivElement>(null);
 
-    // 认证相关状态
-    const [isUserAuthenticated, setIsUserAuthenticated] = useState(false);
-    const [userInfo, setUserInfo] = useState<any>(null);
-    const [authLoading, setAuthLoading] = useState(true);
-
     const [debugMode, setDebugMode] = useState(false);
     const [debugHtml, setDebugHtml] = useState('');
     const [forceDebug, setForceDebug] = useState(false);
@@ -426,43 +418,6 @@ const App: React.FC = () => {
         ta.style.height = 'auto';
         const maxHeight = 5 * 20; // 大约 5 行，按 20px 行高
         ta.style.height = Math.min(ta.scrollHeight, maxHeight) + 'px';
-    };
-
-    // 检查用户认证状态
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                setAuthLoading(true);
-                const autoLoginResult = await authService.autoLogin();
-                if (autoLoginResult.success && autoLoginResult.user) {
-                    setIsUserAuthenticated(true);
-                    setUserInfo(autoLoginResult.user);
-                } else {
-                    setIsUserAuthenticated(false);
-                    setUserInfo(null);
-                }
-            } catch (err) {
-                console.error('Auto login failed:', err);
-                setIsUserAuthenticated(false);
-                setUserInfo(null);
-            } finally {
-                setAuthLoading(false);
-            }
-        };
-
-        checkAuth();
-    }, []);
-
-    // 认证成功处理
-    const handleAuthSuccess = (user: any) => {
-        setIsUserAuthenticated(true);
-        setUserInfo(user);
-    };
-
-    // 登出处理
-    const handleLogout = () => {
-        setIsUserAuthenticated(false);
-        setUserInfo(null);
     };
 
     // 检测用户是否在手动滚动
@@ -682,38 +637,7 @@ const App: React.FC = () => {
     const formatTime = (date: Date) => date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
     // 加载状态
-    if (authLoading) {
-        return (
-            <div className={styles.root}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    height: '100vh',
-                    flexDirection: 'column'
-                }}>
-                    <Spinner size="medium" />
-                    <Text style={{ marginTop: '16px' }}>初始化中...</Text>
-                </div>
-            </div>
-        );
-    }
-
-    // 未认证状态，显示登录界面
-    if (!isUserAuthenticated) {
-        return (
-            <div className={styles.root}>
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100vh',
-                    padding: '16px'
-                }}>
-                    <AuthPanel onAuthSuccess={handleAuthSuccess} />
-                </div>
-            </div>
-        );
-    }
+    // (authLoading removed - no auth required)
 
     return (
         <div className={styles.root}>
@@ -735,7 +659,7 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* Settings Overlay (隐藏管理功能到覆盖层) */}
+            {/* Settings Overlay */}
             {showSettings && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ width: '92%', maxWidth: 880, maxHeight: '92%', overflow: 'auto', borderRadius: 12, background: '#fff', padding: 20 }}>
@@ -743,14 +667,8 @@ const App: React.FC = () => {
                             <h3 style={{ margin: 0 }}>设置</h3>
                             <Button appearance="secondary" onClick={() => setShowSettings(false)}>关闭</Button>
                         </div>
-                        {/* 合并显示：左侧用户信息（含卡密兑换），右侧为插件设置（数学公式等） */}
                         <div>
-                            <SettingsPanel
-                                onClose={() => setShowSettings(false)}
-                                user={userInfo}
-                                onLogout={handleLogout}
-                                onUserUpdate={setUserInfo}
-                            />
+                            <SettingsPanel onClose={() => setShowSettings(false)} />
                         </div>
                     </div>
                 </div>
@@ -901,7 +819,7 @@ const App: React.FC = () => {
                 {/* Controls Row - 保留在主界面，位于输入区上方 */}
                 <div className={styles.inputArea}>
                     <div className={styles.controlsRow}>
-                        {/* <ModelSelector onModelChange={handleModelChange} /> */}
+                        <ModelSelector onModelChange={handleModelChange} />
                         <LayoutPresetPanel onPresetChange={handlePresetChange} />
                         <FileUploadButton
                             currentModel={activeModel}
