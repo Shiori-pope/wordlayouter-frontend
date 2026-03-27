@@ -45,6 +45,7 @@ export interface CustomProvider {
     id: string;
     name: string;
     baseUrl: string;
+    chatPath?: string;  // 可选的 chat completions 路径，默认 /v1/chat/completions
     apiKeyStorageKey: string;
 }
 

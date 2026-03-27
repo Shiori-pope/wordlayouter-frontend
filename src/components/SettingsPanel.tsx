@@ -234,6 +234,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     // 添加自定义提供商表单
     const [providerName, setProviderName] = useState('');
     const [providerBaseUrl, setProviderBaseUrl] = useState('');
+    const [providerChatPath, setProviderChatPath] = useState('/v1/chat/completions');
     const [providerApiKey, setProviderApiKey] = useState('');
 
     // 添加模型状态
@@ -241,6 +242,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     const [selectedBuiltInModel, setSelectedBuiltInModel] = useState<string>('');
     const [selectedCustomProvider, setSelectedCustomProvider] = useState<string>('');
     const [customModelName, setCustomModelName] = useState('');
+    const [customProviderModels, setCustomProviderModels] = useState<string[]>([]);
+    const [fetchingModels, setFetchingModels] = useState(false);
 
     useEffect(() => {
         const loaded = getSettings();
@@ -295,8 +298,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         const newProvider: CustomProvider = {
             id: editingProvider?.id || `custom-provider-${Date.now()}`,
             name: providerName.trim(),
-            baseUrl: providerBaseUrl.trim(),
-            apiKeyStorageKey: `custom-provider-key-${Date.now()}`,
+            baseUrl: providerBaseUrl.trim().replace(/\/$/, ''),  // 去除末尾斜杠
+            chatPath: providerChatPath.trim() || '/v1/chat/completions',
+            apiKeyStorageKey: editingProvider?.apiKeyStorageKey || `custom-provider-key-${Date.now()}`,
         };
 
         if (providerApiKey.trim()) {
@@ -310,10 +314,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
     const handleDeleteProvider = (providerId: string) => {
         if (window.confirm('删除该提供商？该提供商下的所有模型也会被移除。')) {
+            // 先移除该提供商下的所有模型
+            const modelsToRemove = getUserAddedModels().filter(m => m.provider === providerId);
+            for (const model of modelsToRemove) {
+                removeModelFromUserList(model.id);
+            }
+            // 再删除提供商
             deleteCustomProvider(providerId);
-            // 同时移除该提供商下的所有模型
-            const models = getUserAddedModels().filter(m => m.provider !== providerId);
-            localStorage.setItem('word-ai-user-added-models', JSON.stringify(models));
             loadData();
         }
     };
@@ -322,6 +329,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setEditingProvider(provider);
         setProviderName(provider.name);
         setProviderBaseUrl(provider.baseUrl);
+        setProviderChatPath(provider.chatPath || '/v1/chat/completions');
         setProviderApiKey(getApiKey(provider.apiKeyStorageKey));
         setShowAddProviderDialog(true);
     };
@@ -331,6 +339,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setEditingProvider(null);
         setProviderName('');
         setProviderBaseUrl('');
+        setProviderChatPath('/v1/chat/completions');
         setProviderApiKey('');
     };
 
@@ -357,10 +366,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         if (!provider) return;
 
         const newModel: ModelConfig = {
-            id: `custom-${Date.now()}`,
+            id: `custom-${provider.id}-${Date.now()}`,
             name: customModelName.trim(),
             provider: provider.id,
-            apiUrl: provider.baseUrl,
+            apiUrl: `${provider.baseUrl}${provider.chatPath || '/v1/chat/completions'}`,
             apiKeyStorageKey: provider.apiKeyStorageKey,
             supportsVision: false,
             supportsStreaming: true,
@@ -380,6 +389,56 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setSelectedBuiltInModel('');
         setSelectedCustomProvider('');
         setCustomModelName('');
+        setCustomProviderModels([]);
+    };
+
+    // 从自定义提供商获取模型列表
+    const fetchModelsFromProvider = async (provider: CustomProvider) => {
+        if (!provider.baseUrl) return;
+        setFetchingModels(true);
+        setCustomProviderModels([]);
+
+        try {
+            const apiKey = getApiKey(provider.apiKeyStorageKey);
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            if (apiKey) {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
+            const response = await fetch(`${provider.baseUrl}/v1/models`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // 尝试解析不同格式的响应
+                let models: string[] = [];
+                if (data.data && Array.isArray(data.data)) {
+                    models = data.data.map((m: any) => m.id || m.name);
+                } else if (Array.isArray(data)) {
+                    models = data.map((m: any) => m.id || m.name);
+                }
+                setCustomProviderModels(models);
+            }
+        } catch (error) {
+            console.log('Failed to fetch models from provider:', error);
+        } finally {
+            setFetchingModels(false);
+        }
+    };
+
+    const handleCustomProviderChange = (providerId: string) => {
+        setSelectedCustomProvider(providerId);
+        setCustomModelName('');
+        setCustomProviderModels([]);
+
+        const provider = customProviders.find(p => p.id === providerId);
+        if (provider) {
+            fetchModelsFromProvider(provider);
+        }
     };
 
     // 模型操作
@@ -634,6 +693,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                                     />
                                 </div>
                                 <div className={styles.formGroup}>
+                                    <Label className={styles.formLabel}>Chat 路径</Label>
+                                    <Input
+                                        className={styles.formInput}
+                                        value={providerChatPath}
+                                        onChange={(e, data) => setProviderChatPath(data.value)}
+                                        placeholder="/v1/chat/completions"
+                                    />
+                                    <div style={{ fontSize: '11px', color: '#888' }}>
+                                        API 调用的路径，默认 /v1/chat/completions
+                                    </div>
+                                </div>
+                                <div className={styles.formGroup}>
                                     <Label className={styles.formLabel}>API Key</Label>
                                     <Input
                                         className={styles.formInput}
@@ -714,10 +785,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                                         <Dropdown
                                             placeholder="选择提供商"
                                             value={customProviders.find(p => p.id === selectedCustomProvider)?.name || ''}
-                                            onOptionSelect={(e, data) => {
-                                                setSelectedCustomProvider(data.optionValue || '');
-                                                setCustomModelName('');
-                                            }}
+                                            onOptionSelect={(e, data) => handleCustomProviderChange(data.optionValue || '')}
                                         >
                                             {customProviders.map((p) => (
                                                 <Option key={p.id} value={p.id}>
@@ -727,15 +795,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                                         </Dropdown>
                                     </div>
                                     {selectedCustomProvider && (
-                                        <div className={styles.formGroup}>
-                                            <Label className={styles.formLabel}>模型名称 *</Label>
-                                            <Input
-                                                className={styles.formInput}
-                                                value={customModelName}
-                                                onChange={(e, data) => setCustomModelName(data.value)}
-                                                placeholder="例如: gpt-4o"
-                                            />
-                                        </div>
+                                        fetchingModels ? (
+                                            <Text size={200}>正在获取模型列表...</Text>
+                                        ) : customProviderModels.length > 0 ? (
+                                            <div className={styles.formGroup}>
+                                                <Label className={styles.formLabel}>选择模型（从 API 获取）</Label>
+                                                <Dropdown
+                                                    placeholder="选择一个模型"
+                                                    value={customProviderModels.find(m => m === customModelName) || ''}
+                                                    onOptionSelect={(e, data) => setCustomModelName(data.optionValue || '')}
+                                                >
+                                                    {customProviderModels.map((model) => (
+                                                        <Option key={model} value={model}>
+                                                            {model}
+                                                        </Option>
+                                                    ))}
+                                                </Dropdown>
+                                            </div>
+                                        ) : (
+                                            <div className={styles.formGroup}>
+                                                <Label className={styles.formLabel}>模型名称 *</Label>
+                                                <Input
+                                                    className={styles.formInput}
+                                                    value={customModelName}
+                                                    onChange={(e, data) => setCustomModelName(data.value)}
+                                                    placeholder="例如: gpt-4o"
+                                                />
+                                            </div>
+                                        )
                                     )}
                                 </div>
                             )}
