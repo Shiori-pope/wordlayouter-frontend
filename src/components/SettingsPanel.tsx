@@ -154,6 +154,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     const [availableModels, setAvailableModels] = useState<ModelConfig[]>([]);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [showCustomForm, setShowCustomForm] = useState(false);
+    const [selectedProvider, setSelectedProvider] = useState<string>('');
     const [selectedBuiltInModel, setSelectedBuiltInModel] = useState<string>('');
     const [isKeyDialogOpen, setIsKeyDialogOpen] = useState(false);
     const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
@@ -215,6 +216,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     };
 
     // 模型管理相关函数
+    const getAvailableProviders = (): string[] => {
+        const providers = new Set(availableModels.map(m => m.provider));
+        return Array.from(providers);
+    };
+
+    const getModelsByProvider = (provider: string): ModelConfig[] => {
+        return availableModels.filter(m => m.provider === provider);
+    };
+
     const handleAddFromBuiltIn = () => {
         if (selectedBuiltInModel) {
             const model = availableModels.find(m => m.id === selectedBuiltInModel);
@@ -222,9 +232,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 addModelToUserList(model);
                 loadModels();
                 setShowAddDialog(false);
+                setSelectedProvider('');
                 setSelectedBuiltInModel('');
             }
         }
+    };
+
+    const handleOpenAddDialog = () => {
+        setSelectedProvider('');
+        setSelectedBuiltInModel('');
+        setShowAddDialog(true);
+    };
+
+    const handleProviderChange = (provider: string) => {
+        setSelectedProvider(provider);
+        setSelectedBuiltInModel('');
     };
 
     const handleAddCustomModel = () => {
@@ -335,7 +357,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                             icon={<Add24Regular />}
                             size="small"
                             appearance="primary"
-                            onClick={() => setShowAddDialog(true)}
+                            onClick={handleOpenAddDialog}
                             disabled={availableModels.length === 0}
                         >
                             从内置模型添加
@@ -454,26 +476,53 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             </div>
 
             {/* 从内置模型添加的 Dialog */}
-            <Dialog open={showAddDialog} onOpenChange={(_, data) => setShowAddDialog(data.open)}>
+            <Dialog open={showAddDialog} onOpenChange={(_, data) => {
+                setShowAddDialog(data.open);
+                if (!data.open) {
+                    setSelectedProvider('');
+                    setSelectedBuiltInModel('');
+                }
+            }}>
                 <DialogSurface>
                     <DialogBody>
                         <DialogTitle>从内置模型添加</DialogTitle>
                         <DialogContent>
+                            {/* 第一步：选择提供商 */}
                             <div className={styles.formGroup}>
-                                <Label className={styles.formLabel}>选择模型</Label>
-                                <Dropdown
-                                    placeholder="选择一个模型"
-                                    value={availableModels.find(m => m.id === selectedBuiltInModel)?.name || ''}
-                                    onOptionSelect={(e, data) => setSelectedBuiltInModel(data.optionValue || '')}
-                                    style={{ minWidth: '300px' }}
-                                >
-                                    {availableModels.map((model) => (
-                                        <Option key={model.id} value={model.id}>
-                                            {model.name}
-                                        </Option>
+                                <Label className={styles.formLabel}>选择提供商</Label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {getAvailableProviders().map((provider) => (
+                                        <Button
+                                            key={provider}
+                                            size="small"
+                                            appearance={selectedProvider === provider ? 'primary' : 'secondary'}
+                                            onClick={() => handleProviderChange(provider)}
+                                            style={{ minWidth: '80px' }}
+                                        >
+                                            {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                                        </Button>
                                     ))}
-                                </Dropdown>
+                                </div>
                             </div>
+
+                            {/* 第二步：选择模型 */}
+                            {selectedProvider && (
+                                <div className={styles.formGroup}>
+                                    <Label className={styles.formLabel}>选择模型</Label>
+                                    <Dropdown
+                                        placeholder="选择一个模型"
+                                        value={getModelsByProvider(selectedProvider).find(m => m.id === selectedBuiltInModel)?.name || ''}
+                                        onOptionSelect={(e, data) => setSelectedBuiltInModel(data.optionValue || '')}
+                                        style={{ minWidth: '300px' }}
+                                    >
+                                        {getModelsByProvider(selectedProvider).map((model) => (
+                                            <Option key={model.id} value={model.id}>
+                                                {model.name}
+                                            </Option>
+                                        ))}
+                                    </Dropdown>
+                                </div>
+                            )}
                         </DialogContent>
                         <DialogActions>
                             <DialogActionsTrigger disableButtonEnhancement>
