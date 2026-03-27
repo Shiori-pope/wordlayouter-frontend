@@ -29,13 +29,23 @@ export type ModelProvider =
 export interface ModelConfig {
     id: string;
     name: string;
-    provider: ModelProvider;
+    provider: ModelProvider | string;  // string allows custom provider ids
     apiUrl: string;
     supportsVision: boolean;
     supportsStreaming: boolean;
     maxTokens: number;
     description: string;
     apiKeyStorageKey?: string;
+}
+
+/**
+ * 自定义提供商配置
+ */
+export interface CustomProvider {
+    id: string;
+    name: string;
+    baseUrl: string;
+    apiKeyStorageKey: string;
 }
 
 // API Key storage key prefix for each provider
@@ -485,6 +495,7 @@ export const BUILT_IN_MODELS: ModelConfig[] = [
 export const MODEL_STORAGE_KEYS = {
     CUSTOM_MODELS: 'word-ai-custom-models',
     USER_ADDED_MODELS: 'word-ai-user-added-models',
+    CUSTOM_PROVIDERS: 'word-ai-custom-providers',
     ACTIVE_MODEL: 'word-ai-active-model',
     API_KEYS: 'word-ai-api-keys',
 };
@@ -550,7 +561,14 @@ export function setActiveModelId(modelId: string): void {
  */
 export function getActiveModel(): ModelConfig {
     const activeId = getActiveModelId();
-    return getAllModels().find(m => m.id === activeId) || BUILT_IN_MODELS[0];
+    // 先从用户添加的模型中查找
+    const userAdded = getUserAddedModels().find(m => m.id === activeId);
+    if (userAdded) return userAdded;
+    // 再从所有模型中查找
+    const allModel = getAllModels().find(m => m.id === activeId);
+    if (allModel) return allModel;
+    // 默认返回第一个内置模型
+    return BUILT_IN_MODELS[0];
 }
 
 /**
@@ -648,4 +666,70 @@ export function getAvailableModelsForAdd(): ModelConfig[] {
     const userAdded = getUserAddedModels();
     const userAddedIds = new Set(userAdded.map(m => m.id));
     return BUILT_IN_MODELS.filter(m => !userAddedIds.has(m.id));
+}
+
+/**
+ * 获取自定义提供商列表
+ */
+export function getCustomProviders(): CustomProvider[] {
+    try {
+        const stored = localStorage.getItem(MODEL_STORAGE_KEYS.CUSTOM_PROVIDERS);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * 保存自定义提供商
+ */
+export function saveCustomProvider(provider: CustomProvider): void {
+    const providers = getCustomProviders();
+    const existingIndex = providers.findIndex(p => p.id === provider.id);
+    if (existingIndex >= 0) {
+        providers[existingIndex] = provider;
+    } else {
+        providers.push(provider);
+    }
+    localStorage.setItem(MODEL_STORAGE_KEYS.CUSTOM_PROVIDERS, JSON.stringify(providers));
+}
+
+/**
+ * 删除自定义提供商
+ */
+export function deleteCustomProvider(providerId: string): void {
+    const providers = getCustomProviders().filter(p => p.id !== providerId);
+    localStorage.setItem(MODEL_STORAGE_KEYS.CUSTOM_PROVIDERS, JSON.stringify(providers));
+}
+
+/**
+ * 根据 ID 获取自定义提供商
+ */
+export function getCustomProviderById(providerId: string): CustomProvider | undefined {
+    return getCustomProviders().find(p => p.id === providerId);
+}
+
+/**
+ * 获取内置提供商列表（排除自定义）
+ */
+export function getBuiltInProviders(): string[] {
+    const builtInProviders = new Set(BUILT_IN_MODELS.map(m => m.provider));
+    return Array.from(builtInProviders);
+}
+
+/**
+ * 按提供商分组获取用户已添加的模型
+ */
+export function getUserAddedModelsGroupedByProvider(): Record<string, ModelConfig[]> {
+    const models = getUserAddedModels();
+    const grouped: Record<string, ModelConfig[]> = {};
+
+    for (const model of models) {
+        if (!grouped[model.provider]) {
+            grouped[model.provider] = [];
+        }
+        grouped[model.provider].push(model);
+    }
+
+    return grouped;
 }
