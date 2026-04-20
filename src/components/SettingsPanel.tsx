@@ -293,7 +293,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     const handleAddCustomModel = () => {
         if (!newModelName.trim() || !newModelId.trim() || !newModelApiUrl.trim()) return;
 
-        const modelId = `custom-${Date.now()}`;
         const apiKeyStorageKey = `custom-model-key-${Date.now()}`;
 
         // 保存 API Key（如果提供）
@@ -302,7 +301,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         }
 
         const newModel: ModelConfig = {
-            id: modelId,
+            id: newModelId.trim(),  // 使用用户输入的模型 ID（如 deepseek-chat）
             name: newModelName.trim(),
             provider: 'custom',
             apiUrl: newModelApiUrl.trim(),
@@ -310,7 +309,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             supportsVision: false,
             supportsStreaming: true,
             maxTokens: parseInt(newModelMaxTokens) || 8192,
-            description: `自定义模型: ${newModelId.trim()}`,
+            description: `自定义模型: ${newModelName.trim()}`,
         };
 
         addModelToUserList(newModel);
