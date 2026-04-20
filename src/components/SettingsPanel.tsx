@@ -300,11 +300,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             saveApiKey(apiKeyStorageKey, newModelApiKey.trim());
         }
 
+        // 智能判断 URL：自动补全 /v1/chat/completions
+        let apiUrl = newModelApiUrl.trim();
+        if (!apiUrl.includes('/v1/chat/completions')) {
+            apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+        }
+
         const newModel: ModelConfig = {
             id: newModelId.trim(),  // 使用用户输入的模型 ID（如 deepseek-chat）
             name: newModelName.trim(),
             provider: 'custom',
-            apiUrl: newModelApiUrl.trim(),
+            apiUrl: apiUrl,
             apiKeyStorageKey: apiKeyStorageKey,
             supportsVision: false,
             supportsStreaming: true,
@@ -484,7 +490,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                                     className={styles.formInput}
                                     value={newModelApiUrl}
                                     onChange={(e, data) => setNewModelApiUrl(data.value)}
-                                    placeholder="例如: https://api.openai.com/v1/chat/completions"
+                                    placeholder="例如: https://api.deepseek.com（自动补全路径）"
                                 />
                             </div>
                             <div className={styles.formGroup}>
