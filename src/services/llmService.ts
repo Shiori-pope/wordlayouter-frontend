@@ -175,7 +175,7 @@ export async function callDeepSeek(
     // 确保 max_tokens 不超过限制
     const maxTokensToUse = Math.min(currentModel.maxTokens, 8192);
 
-    const messages = buildMessagess(
+    const messages = buildMessages(
         conversationHistory,
         userMessage,
         context,

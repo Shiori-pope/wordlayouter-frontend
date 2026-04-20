@@ -5,6 +5,8 @@ import {
     Button,
     Input,
     Label,
+    Dropdown,
+    Option,
     Text,
     Dialog,
     DialogSurface,
@@ -286,6 +288,43 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             saveApiKey(editingModel.apiKeyStorageKey, apiKeyInput);
         }
         setIsKeyDialogOpen(false);
+    };
+
+    const handleAddCustomModel = () => {
+        if (!newModelName.trim() || !newModelId.trim() || !newModelApiUrl.trim()) return;
+
+        const modelId = `custom-${Date.now()}`;
+        const apiKeyStorageKey = `custom-model-key-${Date.now()}`;
+
+        // 保存 API Key（如果提供）
+        if (newModelApiKey.trim()) {
+            saveApiKey(apiKeyStorageKey, newModelApiKey.trim());
+        }
+
+        const newModel: ModelConfig = {
+            id: modelId,
+            name: newModelName.trim(),
+            provider: 'custom',
+            apiUrl: newModelApiUrl.trim(),
+            apiKeyStorageKey: apiKeyStorageKey,
+            supportsVision: false,
+            supportsStreaming: true,
+            maxTokens: parseInt(newModelMaxTokens) || 8192,
+            description: `自定义模型: ${newModelId.trim()}`,
+        };
+
+        addModelToUserList(newModel);
+        loadData();
+        closeAddModelDialog();
+    };
+
+    const closeAddModelDialog = () => {
+        setShowAddModelDialog(false);
+        setNewModelName('');
+        setNewModelId('');
+        setNewModelApiUrl('');
+        setNewModelApiKey('');
+        setNewModelMaxTokens('8192');
     };
 
     const getProviderDisplayName = (providerId: string): string => {
