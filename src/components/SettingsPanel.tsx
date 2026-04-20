@@ -5,8 +5,6 @@ import {
     Button,
     Input,
     Label,
-    Dropdown,
-    Option,
     Text,
     Dialog,
     DialogSurface,
@@ -21,16 +19,10 @@ import { getSettings, saveSettings, resetSettings, PluginSettings } from '../typ
 import { WORD_FONT_SIZES } from '../types/wordFonts';
 import {
     ModelConfig,
-    CustomProvider,
     getUserAddedModels,
     getUserAddedModelsGroupedByProvider,
     addModelToUserList,
     removeModelFromUserList,
-    getAvailableModelsForAdd,
-    getCustomProviders,
-    saveCustomProvider,
-    deleteCustomProvider,
-    getBuiltInProviders,
     getApiKey,
     saveApiKey,
     hasApiKey,
@@ -219,31 +211,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
     // 模型管理状态
     const [groupedModels, setGroupedModels] = useState<Record<string, ModelConfig[]>>({});
-    const [customProviders, setCustomProviders] = useState<CustomProvider[]>([]);
-    const [availableModels, setAvailableModels] = useState<ModelConfig[]>([]);
-    const [builtInProviders, setBuiltInProviders] = useState<string[]>([]);
 
     // Dialog 状态
-    const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
     const [showAddModelDialog, setShowAddModelDialog] = useState(false);
     const [isKeyDialogOpen, setIsKeyDialogOpen] = useState(false);
     const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
-    const [editingProvider, setEditingProvider] = useState<CustomProvider | null>(null);
     const [apiKeyInput, setApiKeyInput] = useState('');
 
-    // 添加自定义提供商表单
-    const [providerName, setProviderName] = useState('');
-    const [providerBaseUrl, setProviderBaseUrl] = useState('');
-    const [providerChatPath, setProviderChatPath] = useState('/v1/chat/completions');
-    const [providerApiKey, setProviderApiKey] = useState('');
-
-    // 添加模型状态
-    const [selectedBuiltInProvider, setSelectedBuiltInProvider] = useState<string>('');
-    const [selectedBuiltInModel, setSelectedBuiltInModel] = useState<string>('');
-    const [selectedCustomProvider, setSelectedCustomProvider] = useState<string>('');
-    const [customModelName, setCustomModelName] = useState('');
-    const [customProviderModels, setCustomProviderModels] = useState<string[]>([]);
-    const [fetchingModels, setFetchingModels] = useState(false);
+    // 添加自定义模型表单状态
+    const [newModelName, setNewModelName] = useState('');
+    const [newModelId, setNewModelId] = useState('');
+    const [newModelApiUrl, setNewModelApiUrl] = useState('');
+    const [newModelApiKey, setNewModelApiKey] = useState('');
+    const [newModelMaxTokens, setNewModelMaxTokens] = useState('8192');
 
     useEffect(() => {
         const loaded = getSettings();
@@ -254,9 +234,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
     const loadData = () => {
         setGroupedModels(getUserAddedModelsGroupedByProvider());
-        setCustomProviders(getCustomProviders());
-        setAvailableModels(getAvailableModelsForAdd());
-        setBuiltInProviders(getBuiltInProviders());
     };
 
     const handleChange = (key: keyof PluginSettings, value: any) => {
@@ -292,155 +269,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     };
 
     // 自定义提供商管理
-    const handleSaveProvider = () => {
-        if (!providerName.trim() || !providerBaseUrl.trim()) return;
-
-        const newProvider: CustomProvider = {
-            id: editingProvider?.id || `custom-provider-${Date.now()}`,
-            name: providerName.trim(),
-            baseUrl: providerBaseUrl.trim().replace(/\/$/, ''),  // 去除末尾斜杠
-            chatPath: providerChatPath.trim() || '/v1/chat/completions',
-            apiKeyStorageKey: editingProvider?.apiKeyStorageKey || `custom-provider-key-${Date.now()}`,
-        };
-
-        if (providerApiKey.trim()) {
-            saveApiKey(newProvider.apiKeyStorageKey, providerApiKey.trim());
-        }
-
-        saveCustomProvider(newProvider);
-        loadData();
-        closeProviderDialog();
-    };
-
-    const handleDeleteProvider = (providerId: string) => {
-        if (window.confirm('删除该提供商？该提供商下的所有模型也会被移除。')) {
-            // 先移除该提供商下的所有模型
-            const modelsToRemove = getUserAddedModels().filter(m => m.provider === providerId);
-            for (const model of modelsToRemove) {
-                removeModelFromUserList(model.id);
-            }
-            // 再删除提供商
-            deleteCustomProvider(providerId);
-            loadData();
-        }
-    };
-
-    const handleEditProvider = (provider: CustomProvider) => {
-        setEditingProvider(provider);
-        setProviderName(provider.name);
-        setProviderBaseUrl(provider.baseUrl);
-        setProviderChatPath(provider.chatPath || '/v1/chat/completions');
-        setProviderApiKey(getApiKey(provider.apiKeyStorageKey));
-        setShowAddProviderDialog(true);
-    };
-
-    const closeProviderDialog = () => {
-        setShowAddProviderDialog(false);
-        setEditingProvider(null);
-        setProviderName('');
-        setProviderBaseUrl('');
-        setProviderChatPath('/v1/chat/completions');
-        setProviderApiKey('');
-    };
-
-    // 添加内置模型
-    const getModelsByBuiltInProvider = (provider: string): ModelConfig[] => {
-        return availableModels.filter(m => m.provider === provider);
-    };
-
-    const handleAddBuiltInModel = () => {
-        if (!selectedBuiltInModel) return;
-        const model = availableModels.find(m => m.id === selectedBuiltInModel);
-        if (model) {
-            addModelToUserList(model);
-            loadData();
-        }
-        closeAddModelDialog();
-    };
-
-    // 添加自定义提供商模型
-    const handleAddCustomProviderModel = () => {
-        if (!selectedCustomProvider || !customModelName.trim()) return;
-
-        const provider = customProviders.find(p => p.id === selectedCustomProvider);
-        if (!provider) return;
-
-        const newModel: ModelConfig = {
-            id: `custom-${provider.id}-${Date.now()}`,
-            name: customModelName.trim(),
-            provider: provider.id,
-            apiUrl: `${provider.baseUrl}${provider.chatPath || '/v1/chat/completions'}`,
-            apiKeyStorageKey: provider.apiKeyStorageKey,
-            supportsVision: false,
-            supportsStreaming: true,
-            maxTokens: 4096,
-            description: `自定义模型 - ${provider.name}`,
-        };
-
-        addModelToUserList(newModel);
-        loadData();
-        setCustomModelName('');
-        closeAddModelDialog();
-    };
-
-    const closeAddModelDialog = () => {
-        setShowAddModelDialog(false);
-        setSelectedBuiltInProvider('');
-        setSelectedBuiltInModel('');
-        setSelectedCustomProvider('');
-        setCustomModelName('');
-        setCustomProviderModels([]);
-    };
-
-    // 从自定义提供商获取模型列表
-    const fetchModelsFromProvider = async (provider: CustomProvider) => {
-        if (!provider.baseUrl) return;
-        setFetchingModels(true);
-        setCustomProviderModels([]);
-
-        try {
-            const apiKey = getApiKey(provider.apiKeyStorageKey);
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-            if (apiKey) {
-                headers['Authorization'] = `Bearer ${apiKey}`;
-            }
-
-            const response = await fetch(`${provider.baseUrl}/v1/models`, {
-                method: 'GET',
-                headers,
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                // 尝试解析不同格式的响应
-                let models: string[] = [];
-                if (data.data && Array.isArray(data.data)) {
-                    models = data.data.map((m: any) => m.id || m.name);
-                } else if (Array.isArray(data)) {
-                    models = data.map((m: any) => m.id || m.name);
-                }
-                setCustomProviderModels(models);
-            }
-        } catch (error) {
-            console.log('Failed to fetch models from provider:', error);
-        } finally {
-            setFetchingModels(false);
-        }
-    };
-
-    const handleCustomProviderChange = (providerId: string) => {
-        setSelectedCustomProvider(providerId);
-        setCustomModelName('');
-        setCustomProviderModels([]);
-
-        const provider = customProviders.find(p => p.id === providerId);
-        if (provider) {
-            fetchModelsFromProvider(provider);
-        }
-    };
-
     // 模型操作
     const handleRemoveModel = (modelId: string) => {
         removeModelFromUserList(modelId);
@@ -460,27 +288,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setIsKeyDialogOpen(false);
     };
 
-    const handleConfigureProviderKey = (provider: CustomProvider) => {
-        setEditingModel({
-            id: provider.id,
-            name: provider.name,
-            provider: provider.id,
-            apiUrl: provider.baseUrl,
-            apiKeyStorageKey: provider.apiKeyStorageKey,
-            supportsVision: false,
-            supportsStreaming: true,
-            maxTokens: 4096,
-            description: '',
-        } as ModelConfig);
-        setApiKeyInput(getApiKey(provider.apiKeyStorageKey));
-        setIsKeyDialogOpen(true);
-    };
-
     const getProviderDisplayName = (providerId: string): string => {
-        // 检查是否是自定义提供商
-        const customProvider = customProviders.find(p => p.id === providerId);
-        if (customProvider) return customProvider.name;
-        // 内置提供商首字母大写
+        if (providerId === 'custom') return '自定义';
         return providerId.charAt(0).toUpperCase() + providerId.slice(1);
     };
 
@@ -560,69 +369,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                             >
                                 添加内置模型
                             </Button>
-                            <Button
-                                icon={<Globe24Regular />}
-                                size="small"
-                                appearance="secondary"
-                                onClick={() => {
-                                    setEditingProvider(null);
-                                    setProviderName('');
-                                    setProviderBaseUrl('');
-                                    setProviderApiKey('');
-                                    setShowAddProviderDialog(true);
-                                }}
-                            >
-                                添加自定义提供商
-                            </Button>
                         </div>
                     </div>
                 </div>
-
-                {/* 自定义提供商管理 */}
-                {customProviders.length > 0 && (
-                    <div className={styles.section}>
-                        <div className={styles.sectionTitle}>自定义提供商</div>
-                        <div className={styles.subSection}>
-                            {customProviders.map((provider) => {
-                                const hasKey = hasApiKey({ apiKeyStorageKey: provider.apiKeyStorageKey } as ModelConfig);
-                                return (
-                                    <div key={provider.id} className={styles.customProviderItem}>
-                                        <div className={styles.customProviderInfo}>
-                                            <span className={styles.customProviderName}>{provider.name}</span>
-                                            <span className={styles.customProviderUrl}>{provider.baseUrl}</span>
-                                            <span className={`${styles.apiKeyStatus} ${hasKey ? styles.apiKeyOk : styles.apiKeyMissing}`}>
-                                                {hasKey ? 'API Key 已配置' : '未配置 API Key'}
-                                            </span>
-                                        </div>
-                                        <div className={styles.modelItemActions}>
-                                            <Button
-                                                icon={<Key24Regular />}
-                                                size="small"
-                                                appearance="subtle"
-                                                onClick={() => handleConfigureProviderKey(provider)}
-                                                title="配置 API Key"
-                                            />
-                                            <Button
-                                                icon={<Settings24Regular />}
-                                                size="small"
-                                                appearance="subtle"
-                                                onClick={() => handleEditProvider(provider)}
-                                                title="编辑"
-                                            />
-                                            <Button
-                                                icon={<Delete24Regular />}
-                                                size="small"
-                                                appearance="subtle"
-                                                onClick={() => handleDeleteProvider(provider.id)}
-                                                title="删除"
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
 
                 {/* 插入设置区域 */}
                 <div className={styles.section}>
@@ -665,179 +414,69 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 <Button size="small" appearance="subtle" onClick={handleReset}>重置</Button>
             </div>
 
-            {/* 添加自定义提供商 Dialog */}
-            <Dialog open={showAddProviderDialog} onOpenChange={(_, data) => {
-                if (!data.open) closeProviderDialog();
-            }}>
-                <DialogSurface>
-                    <DialogBody>
-                        <DialogTitle>{editingProvider ? '编辑自定义提供商' : '添加自定义提供商'}</DialogTitle>
-                        <DialogContent>
-                            <div className={styles.inlineForm}>
-                                <div className={styles.formGroup}>
-                                    <Label className={styles.formLabel}>提供商名称 *</Label>
-                                    <Input
-                                        className={styles.formInput}
-                                        value={providerName}
-                                        onChange={(e, data) => setProviderName(data.value)}
-                                        placeholder="例如: My API"
-                                    />
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <Label className={styles.formLabel}>Base URL *</Label>
-                                    <Input
-                                        className={styles.formInput}
-                                        value={providerBaseUrl}
-                                        onChange={(e, data) => setProviderBaseUrl(data.value)}
-                                        placeholder="https://api.example.com/v1"
-                                    />
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <Label className={styles.formLabel}>Chat 路径</Label>
-                                    <Input
-                                        className={styles.formInput}
-                                        value={providerChatPath}
-                                        onChange={(e, data) => setProviderChatPath(data.value)}
-                                        placeholder="/v1/chat/completions"
-                                    />
-                                    <div style={{ fontSize: '11px', color: '#888' }}>
-                                        API 调用的路径，默认 /v1/chat/completions
-                                    </div>
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <Label className={styles.formLabel}>API Key</Label>
-                                    <Input
-                                        className={styles.formInput}
-                                        type="password"
-                                        value={providerApiKey}
-                                        onChange={(e, data) => setProviderApiKey(data.value)}
-                                        placeholder="sk-..."
-                                    />
-                                </div>
-                            </div>
-                        </DialogContent>
-                        <DialogActions>
-                            <DialogTrigger disableButtonEnhancement>
-                                <Button appearance="secondary">取消</Button>
-                            </DialogTrigger>
-                            <Button appearance="primary" onClick={handleSaveProvider} disabled={!providerName.trim() || !providerBaseUrl.trim()}>
-                                保存
-                            </Button>
-                        </DialogActions>
-                    </DialogBody>
-                </DialogSurface>
-            </Dialog>
-
             {/* 添加模型 Dialog */}
             <Dialog open={showAddModelDialog} onOpenChange={(_, data) => {
                 if (!data.open) closeAddModelDialog();
             }}>
                 <DialogSurface>
                     <DialogBody>
-                        <DialogTitle>添加模型</DialogTitle>
+                        <DialogTitle>添加自定义模型</DialogTitle>
                         <DialogContent>
-                            <div className={styles.subSection} style={{ marginBottom: '12px' }}>
-                                <div className={styles.subSectionTitle}>从内置提供商添加</div>
-                                {/* 选择内置提供商 */}
-                                <div className={styles.formGroup}>
-                                    <Label className={styles.formLabel}>选择提供商</Label>
-                                    <div className={styles.buttonGroup}>
-                                        {builtInProviders.map((provider) => (
-                                            <Button
-                                                key={provider}
-                                                size="small"
-                                                appearance={selectedBuiltInProvider === provider ? 'primary' : 'secondary'}
-                                                onClick={() => {
-                                                    setSelectedBuiltInProvider(provider);
-                                                    setSelectedBuiltInModel('');
-                                                }}
-                                            >
-                                                {provider.charAt(0).toUpperCase() + provider.slice(1)}
-                                            </Button>
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* 选择模型 */}
-                                {selectedBuiltInProvider && (
-                                    <div className={styles.formGroup}>
-                                        <Label className={styles.formLabel}>选择模型</Label>
-                                        <Dropdown
-                                            placeholder="选择一个模型"
-                                            value={getModelsByBuiltInProvider(selectedBuiltInProvider).find(m => m.id === selectedBuiltInModel)?.name || ''}
-                                            onOptionSelect={(e, data) => setSelectedBuiltInModel(data.optionValue || '')}
-                                        >
-                                            {getModelsByBuiltInProvider(selectedBuiltInProvider).map((model) => (
-                                                <Option key={model.id} value={model.id}>
-                                                    {model.name}
-                                                </Option>
-                                            ))}
-                                        </Dropdown>
-                                    </div>
-                                )}
+                            <div className={styles.formGroup}>
+                                <Label className={styles.formLabel}>模型名称 *</Label>
+                                <Input
+                                    className={styles.formInput}
+                                    value={newModelName}
+                                    onChange={(e, data) => setNewModelName(data.value)}
+                                    placeholder="例如: GPT-4o"
+                                />
                             </div>
-
-                            {/* 从自定义提供商添加 */}
-                            {customProviders.length > 0 && (
-                                <div className={styles.subSection}>
-                                    <div className={styles.subSectionTitle}>从自定义提供商添加</div>
-                                    <div className={styles.formGroup}>
-                                        <Label className={styles.formLabel}>选择提供商</Label>
-                                        <Dropdown
-                                            placeholder="选择提供商"
-                                            value={customProviders.find(p => p.id === selectedCustomProvider)?.name || ''}
-                                            onOptionSelect={(e, data) => handleCustomProviderChange(data.optionValue || '')}
-                                        >
-                                            {customProviders.map((p) => (
-                                                <Option key={p.id} value={p.id}>
-                                                    {p.name}
-                                                </Option>
-                                            ))}
-                                        </Dropdown>
-                                    </div>
-                                    {selectedCustomProvider && (
-                                        fetchingModels ? (
-                                            <Text size={200}>正在获取模型列表...</Text>
-                                        ) : customProviderModels.length > 0 ? (
-                                            <div className={styles.formGroup}>
-                                                <Label className={styles.formLabel}>选择模型（从 API 获取）</Label>
-                                                <Dropdown
-                                                    placeholder="选择一个模型"
-                                                    value={customProviderModels.find(m => m === customModelName) || ''}
-                                                    onOptionSelect={(e, data) => setCustomModelName(data.optionValue || '')}
-                                                >
-                                                    {customProviderModels.map((model) => (
-                                                        <Option key={model} value={model}>
-                                                            {model}
-                                                        </Option>
-                                                    ))}
-                                                </Dropdown>
-                                            </div>
-                                        ) : (
-                                            <div className={styles.formGroup}>
-                                                <Label className={styles.formLabel}>模型名称 *</Label>
-                                                <Input
-                                                    className={styles.formInput}
-                                                    value={customModelName}
-                                                    onChange={(e, data) => setCustomModelName(data.value)}
-                                                    placeholder="例如: gpt-4o"
-                                                />
-                                            </div>
-                                        )
-                                    )}
-                                </div>
-                            )}
+                            <div className={styles.formGroup}>
+                                <Label className={styles.formLabel}>模型 ID *</Label>
+                                <Input
+                                    className={styles.formInput}
+                                    value={newModelId}
+                                    onChange={(e, data) => setNewModelId(data.value)}
+                                    placeholder="例如: gpt-4o"
+                                />
+                            </div>
+                            <div className={styles.formGroup}>
+                                <Label className={styles.formLabel}>API URL *</Label>
+                                <Input
+                                    className={styles.formInput}
+                                    value={newModelApiUrl}
+                                    onChange={(e, data) => setNewModelApiUrl(data.value)}
+                                    placeholder="例如: https://api.openai.com/v1/chat/completions"
+                                />
+                            </div>
+                            <div className={styles.formGroup}>
+                                <Label className={styles.formLabel}>API Key</Label>
+                                <Input
+                                    className={styles.formInput}
+                                    type="password"
+                                    value={newModelApiKey}
+                                    onChange={(e, data) => setNewModelApiKey(data.value)}
+                                    placeholder="sk-... (可选)"
+                                />
+                            </div>
+                            <div className={styles.formGroup}>
+                                <Label className={styles.formLabel}>最大 Token 数</Label>
+                                <Input
+                                    className={styles.formInput}
+                                    value={newModelMaxTokens}
+                                    onChange={(e, data) => setNewModelMaxTokens(data.value)}
+                                    placeholder="默认: 8192"
+                                />
+                            </div>
                         </DialogContent>
                         <DialogActions>
                             <DialogTrigger disableButtonEnhancement>
-                                <Button appearance="secondary">取消</Button>
+                                <Button appearance="secondary" onClick={closeAddModelDialog}>取消</Button>
                             </DialogTrigger>
                             <Button
                                 appearance="primary"
-                                onClick={selectedBuiltInProvider ? handleAddBuiltInModel : handleAddCustomProviderModel}
-                                disabled={
-                                    (selectedBuiltInProvider && !selectedBuiltInModel) ||
-                                    (!selectedBuiltInProvider && (!selectedCustomProvider || !customModelName.trim()))
-                                }
+                                onClick={handleAddCustomModel}
+                                disabled={!newModelName.trim() || !newModelId.trim() || !newModelApiUrl.trim()}
                             >
                                 添加
                             </Button>
