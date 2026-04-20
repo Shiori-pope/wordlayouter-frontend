@@ -321,6 +321,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         addModelToUserList(newModel);
         loadData();
         closeAddModelDialog();
+
+        // 通知 ModelSelector 刷新模型列表
+        window.dispatchEvent(new CustomEvent('models-updated'));
     };
 
     const closeAddModelDialog = () => {

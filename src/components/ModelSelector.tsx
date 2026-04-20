@@ -119,6 +119,16 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange, onOpenSett
 
   useEffect(() => {
     loadModels();
+
+    // 监听模型列表更新事件
+    const handleModelsUpdated = () => {
+      loadModels();
+    };
+    window.addEventListener('models-updated', handleModelsUpdated);
+
+    return () => {
+      window.removeEventListener('models-updated', handleModelsUpdated);
+    };
   }, []);
 
   const loadModels = () => {
