@@ -1314,11 +1314,28 @@ function applyInlineStyles(html: string, cssStyles?: string): string {
         applyAttributesTableElements: true
     });
 
-    // 5. 使用正则删除 class 属性（juice 内联后不再需要，包括临时添加的 body-text）
+    // 5. 修复 mso-char-indent-count 与 text-indent 不一致的问题
+    // 当用户 CSS 只覆盖了 text-indent 但没覆盖 mso-char-indent-count 时，
+    // CLASS_STYLE_MAP 的默认 mso-char-indent-count: 2 会残留在内联样式中，
+    // Word 会优先用它做字符级缩进，导致即使 text-indent: 0 表格内文字依然缩进
+    inlineHtml = inlineHtml.replace(
+        /style="([^"]*)"/gi,
+        (match, styles) => {
+            if (/\btext-indent\s*:\s*0(?:\s*px|\s*pt|\s*em|\s*rem|\s*%)?(?:\s*!important)?(?:\s*;|\s*"|$)/i.test(styles + ';')) {
+                let cleaned = styles.replace(/;?\s*mso-char-indent-count\s*:\s*\d+\s*;?/gi, '');
+                cleaned = cleaned.trim().replace(/;+$/, '');
+                cleaned += '; mso-char-indent-count: 0';
+                return `style="${cleaned}"`;
+            }
+            return match;
+        }
+    );
+
+    // 6. 使用正则删除 class 属性（juice 内联后不再需要，包括临时添加的 body-text）
     inlineHtml = inlineHtml.replace(/\s+class="[^"]*"/gi, '');
     inlineHtml = inlineHtml.replace(/\s+class='[^']*'/gi, '');
 
-    // 6. 清理 HTML 结构标签，只保留 body 内容
+    // 7. 清理 HTML 结构标签，只保留 body 内容
     inlineHtml = inlineHtml
         .replace(/<!DOCTYPE[^>]*>/gi, '')
         .replace(/<html[^>]*>/gi, '')
