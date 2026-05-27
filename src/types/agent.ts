@@ -17,6 +17,8 @@ export interface AgentRunOptions {
     model: ModelConfig;
     permissionMode: AgentPermissionMode;
     uploadedFilesText?: string;
+    maxRuntimeMs?: number;
+    maxConsecutiveNoProgressSteps?: number;
     maxSteps?: number;
     executePlannedCalls?: AgentToolCall[];
 }

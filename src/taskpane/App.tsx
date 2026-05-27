@@ -368,6 +368,9 @@ const App: React.FC = () => {
     const [agentStatus, setAgentStatus] = useState<string>('');
     const [agentThinkingTokens, setAgentThinkingTokens] = useState(0);
     const [agentTrace, setAgentTrace] = useState<string[]>([]);
+    const agentThinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const agentDisplayedTokensRef = useRef(0);
+    const agentTargetTokensRef = useRef(0);
 
     // 错误消息自动消失
     useEffect(() => {
@@ -485,22 +488,57 @@ const App: React.FC = () => {
         }
     }, [isStreaming]);
 
+    const appendAgentTrace = (line: string) => {
+        setAgentTrace(prev => [...prev, line].slice(-40));
+    };
+
+    const animateAgentTokensTo = (targetTokens: number) => {
+        agentTargetTokensRef.current = Math.max(agentTargetTokensRef.current, targetTokens);
+        if (agentThinkingTimerRef.current) return;
+
+        agentThinkingTimerRef.current = setInterval(() => {
+            const target = agentTargetTokensRef.current;
+            const current = agentDisplayedTokensRef.current;
+            if (current >= target) {
+                if (agentThinkingTimerRef.current) {
+                    clearInterval(agentThinkingTimerRef.current);
+                    agentThinkingTimerRef.current = null;
+                }
+                return;
+            }
+            const increment = Math.max(1, Math.ceil((target - current) / 8));
+            const next = Math.min(target, current + increment);
+            agentDisplayedTokensRef.current = next;
+            setAgentThinkingTokens(next);
+        }, 80);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (agentThinkingTimerRef.current) {
+                clearInterval(agentThinkingTimerRef.current);
+            }
+        };
+    }, []);
+
     const handleAgentEvent = (event: string | AgentRunEvent) => {
         if (typeof event === 'string') {
             setAgentStatus(event);
             setStreamingContent(event);
-            setAgentTrace(prev => [...prev, event].slice(-12));
+            appendAgentTrace(event);
+            console.debug('[WordAgent:UI]', event);
             return;
         }
 
+        console.debug('[WordAgent:UI]', event);
         setAgentStatus(event.message);
         if (event.type === 'thinking') {
-            setAgentThinkingTokens(prev => prev + event.tokens);
-            setAgentTrace(prev => [...prev, `↓ 约 ${event.tokens} tokens 思考`].slice(-12));
+            animateAgentTokensTo(event.totalTokens);
+            appendAgentTrace(`↓ +${event.tokens} tokens 思考，总计约 ${event.totalTokens}`);
         } else if (event.type === 'tool' || event.type === 'tool_result') {
-            setAgentTrace(prev => [...prev, event.message].slice(-12));
+            appendAgentTrace(event.message);
         } else {
-            setAgentTrace(prev => [...prev, event.message].slice(-12));
+            appendAgentTrace(event.message);
         }
         setStreamingContent(event.message);
     };
@@ -522,6 +560,8 @@ const App: React.FC = () => {
         setStreamingContent('');
         setAgentStatus('');
         setAgentThinkingTokens(0);
+        agentDisplayedTokensRef.current = 0;
+        agentTargetTokensRef.current = 0;
         setAgentTrace([]);
 
         let fullResponse = '';
@@ -675,6 +715,8 @@ const App: React.FC = () => {
         setStreamingContent('正在执行已确认的 Agent 计划...');
         setAgentStatus('正在执行已确认的 Agent 计划...');
         setAgentThinkingTokens(0);
+        agentDisplayedTokensRef.current = 0;
+        agentTargetTokensRef.current = 0;
         setAgentTrace(['正在执行已确认的 Agent 计划...']);
 
         try {

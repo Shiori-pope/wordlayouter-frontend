@@ -27,13 +27,14 @@ interface ModelStep {
     reasoningTokens: number;
 }
 
-const MAX_TOOL_STEPS = 8;
+const DEFAULT_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_MAX_CONSECUTIVE_NO_PROGRESS_STEPS = 3;
 
 export type AgentRunEvent =
-    | { type: 'status'; message: string }
-    | { type: 'thinking'; message: string; tokens: number }
-    | { type: 'tool'; message: string; toolName: AgentToolName }
-    | { type: 'tool_result'; message: string; toolName: AgentToolName; ok: boolean };
+    | { type: 'status'; message: string; step?: number; elapsedMs?: number }
+    | { type: 'thinking'; message: string; tokens: number; totalTokens: number; step?: number }
+    | { type: 'tool'; message: string; toolName: AgentToolName; argsPreview: string; args: unknown; step?: number }
+    | { type: 'tool_result'; message: string; toolName: AgentToolName; ok: boolean; summary: string; step?: number };
 
 function getModelApiKey(model: ModelConfig): string {
     return model.apiKeyStorageKey ? getApiKey(model.apiKeyStorageKey) : '';
@@ -107,6 +108,24 @@ function estimateTokens(text: string): number {
     return Math.ceil(cjkChars * 0.8 + nonCjkChars / 4);
 }
 
+function previewArgs(args: unknown, maxChars = 220): string {
+    let text = '';
+    try {
+        text = JSON.stringify(args);
+    } catch {
+        text = String(args);
+    }
+    return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
+}
+
+function debugAgent(label: string, payload?: unknown) {
+    try {
+        console.debug(`[WordAgent] ${label}`, payload || '');
+    } catch {
+        // ignore console failures in older hosts
+    }
+}
+
 function normalizeOpenAIToolCalls(rawCalls: unknown[] | undefined): AgentToolCall[] {
     if (!Array.isArray(rawCalls)) return [];
     return rawCalls
@@ -138,6 +157,13 @@ async function callOpenAICompatible(
 ): Promise<ModelStep> {
     const apiKey = getModelApiKey(model);
     if (!apiKey) throw new Error('请先配置 API Key');
+    debugAgent('model:request:openai-compatible', {
+        model: model.id,
+        provider: model.provider,
+        useTools,
+        messages,
+        tools: useTools ? toOpenAITools() : undefined,
+    });
 
     const response = await fetch(model.apiUrl, {
         method: 'POST',
@@ -161,6 +187,7 @@ async function callOpenAICompatible(
     }
 
     const data = await response.json();
+    debugAgent('model:response:openai-compatible', data);
     const message = data.choices?.[0]?.message || {};
     const content = message.content || '';
     const reasoningContent = message.reasoning_content || message.reasoning?.content || '';
@@ -188,6 +215,13 @@ async function callAnthropic(
             role: m.role === 'assistant' ? 'assistant' : 'user',
             content: m.content || '',
         }));
+    debugAgent('model:request:anthropic', {
+        model: model.id,
+        provider: model.provider,
+        useTools,
+        system,
+        messages: chatMessages,
+    });
 
     const response = await fetch(model.apiUrl, {
         method: 'POST',
@@ -215,6 +249,7 @@ async function callAnthropic(
     }
 
     const data = await response.json();
+    debugAgent('model:response:anthropic', data);
     const contentBlocks = Array.isArray(data.content) ? data.content : [];
     const text = contentBlocks.filter((b: { type?: string }) => b.type === 'text').map((b: { text?: string }) => b.text || '').join('\n');
     const toolCalls = contentBlocks
@@ -240,6 +275,12 @@ async function callGoogleOrFallback(model: ModelConfig, messages: ChatMessage[])
             parts: [{ text: m.content || '' }],
         }));
     const systemText = messages.filter(m => m.role === 'system').map(m => m.content || '').join('\n\n');
+    debugAgent('model:request:google', {
+        model: model.id,
+        provider: model.provider,
+        systemText,
+        contents,
+    });
 
     const response = await fetch(`${model.apiUrl}?key=${apiKey}`, {
         method: 'POST',
@@ -260,6 +301,7 @@ async function callGoogleOrFallback(model: ModelConfig, messages: ChatMessage[])
     }
 
     const data = await response.json();
+    debugAgent('model:response:google', data);
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     return parseJsonFallback(text) || { content: text, toolCalls: [], reasoningTokens: 0 };
 }
@@ -298,6 +340,11 @@ export async function runAgentTurn(
     layoutPreset?: LayoutPreset | null,
     onEvent?: (event: string | AgentRunEvent) => void
 ): Promise<AgentRunResult> {
+    debugAgent('turn:start', {
+        permissionMode: options.permissionMode,
+        userMessage: options.userMessage,
+        model: `${options.model.provider}/${options.model.id}`,
+    });
     const snapshot = await createTurnSnapshot(`Agent turn: ${options.userMessage.slice(0, 40)}`);
     const allToolCalls: AgentToolCall[] = [];
     const allToolResults: ToolResult[] = [];
@@ -312,11 +359,14 @@ export async function runAgentTurn(
 
         if (options.executePlannedCalls?.length) {
             for (const call of options.executePlannedCalls) {
-                onEvent?.({ type: 'tool', message: `调用工具：${call.name}`, toolName: call.name });
+                const argsPreview = previewArgs(call.arguments);
+                debugAgent('tool:call', { name: call.name, arguments: call.arguments });
+                onEvent?.({ type: 'tool', message: `调用工具：${call.name} ${argsPreview}`, toolName: call.name, argsPreview, args: call.arguments });
                 const result = await executeWordTool(call);
                 allToolCalls.push(call);
                 allToolResults.push(result);
-                onEvent?.({ type: 'tool_result', message: `${result.ok ? '✓' : '✗'} ${result.summary}`, toolName: call.name, ok: result.ok });
+                debugAgent('tool:result', result);
+                onEvent?.({ type: 'tool_result', message: `${result.ok ? '✓' : '✗'} ${result.summary}`, toolName: call.name, ok: result.ok, summary: result.summary });
                 if (!result.ok && !result.error?.recoverable) {
                     throw new Error(result.error?.message || result.summary);
                 }
@@ -338,14 +388,29 @@ export async function runAgentTurn(
         ];
 
         let finalMessage = '';
-        const maxSteps = options.maxSteps || MAX_TOOL_STEPS;
+        const maxRuntimeMs = options.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS;
+        const maxNoProgressSteps = options.maxConsecutiveNoProgressSteps || DEFAULT_MAX_CONSECUTIVE_NO_PROGRESS_STEPS;
+        const startedAt = Date.now();
+        let stepIndex = 0;
+        let consecutiveNoProgressSteps = 0;
+        let totalReasoningTokens = 0;
+        const seenToolFingerprints = new Set<string>();
 
-        for (let stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
-            onEvent?.({ type: 'status', message: `Agent 思考中 (${stepIndex + 1}/${maxSteps})` });
+        while (Date.now() - startedAt < maxRuntimeMs) {
+            stepIndex += 1;
+            onEvent?.({ type: 'status', message: `Agent 思考中，第 ${stepIndex} 轮`, step: stepIndex, elapsedMs: Date.now() - startedAt });
             const step = await callAgentModel(options.model, messages, true);
             if (step.reasoningTokens > 0) {
-                onEvent?.({ type: 'thinking', message: `模型完成思考`, tokens: step.reasoningTokens });
+                totalReasoningTokens += step.reasoningTokens;
+                onEvent?.({ type: 'thinking', message: `模型完成思考`, tokens: step.reasoningTokens, totalTokens: totalReasoningTokens, step: stepIndex });
             }
+            debugAgent('model:step', {
+                step: stepIndex,
+                content: step.content,
+                reasoningTokens: step.reasoningTokens,
+                totalReasoningTokens,
+                toolCalls: step.toolCalls,
+            });
             finalMessage = step.content || finalMessage;
 
             if (step.toolCalls.length === 0) {
@@ -386,11 +451,21 @@ export async function runAgentTurn(
             });
 
             for (const call of step.toolCalls) {
-                onEvent?.({ type: 'tool', message: `调用工具：${call.name}`, toolName: call.name });
+                const argsPreview = previewArgs(call.arguments);
+                const fingerprint = `${call.name}:${argsPreview}`;
+                if (seenToolFingerprints.has(fingerprint)) {
+                    consecutiveNoProgressSteps += 1;
+                } else {
+                    seenToolFingerprints.add(fingerprint);
+                    consecutiveNoProgressSteps = 0;
+                }
+                debugAgent('tool:call', { step: stepIndex, name: call.name, arguments: call.arguments });
+                onEvent?.({ type: 'tool', message: `调用工具：${call.name} ${argsPreview}`, toolName: call.name, argsPreview, args: call.arguments, step: stepIndex });
                 const result = await executeWordTool(call);
                 allToolCalls.push(call);
                 allToolResults.push(result);
-                onEvent?.({ type: 'tool_result', message: `${result.ok ? '✓' : '✗'} ${result.summary}`, toolName: call.name, ok: result.ok });
+                debugAgent('tool:result', { step: stepIndex, result });
+                onEvent?.({ type: 'tool_result', message: `${result.ok ? '✓' : '✗'} ${result.summary}`, toolName: call.name, ok: result.ok, summary: result.summary, step: stepIndex });
                 messages.push({
                     role: 'tool',
                     tool_call_id: call.id,
@@ -405,12 +480,25 @@ export async function runAgentTurn(
                 role: 'system',
                 content: `已执行工具摘要：\n${compactToolResults(allToolResults)}\n继续完成任务；如已完成，请不要再调用工具，直接总结。`,
             });
+
+            if (consecutiveNoProgressSteps >= maxNoProgressSteps) {
+                debugAgent('loop:stopped:no-progress', { consecutiveNoProgressSteps, maxNoProgressSteps });
+                return {
+                    status: 'completed',
+                    snapshotId: snapshot.id,
+                    finalMessage: finalMessage || `Agent 检测到重复工具调用，已暂停。已执行 ${allToolResults.length} 个工具。`,
+                    toolCalls: allToolCalls,
+                    toolResults: allToolResults,
+                    canRollback: allToolResults.some(result => result.ok),
+                };
+            }
         }
 
+        debugAgent('loop:stopped:timeout', { maxRuntimeMs, toolCalls: allToolCalls.length });
         return {
             status: 'completed',
             snapshotId: snapshot.id,
-            finalMessage: finalMessage || `达到最大工具步数，已执行 ${allToolResults.length} 个工具。`,
+            finalMessage: finalMessage || `Agent 达到运行时间保护，已执行 ${allToolResults.length} 个工具。`,
             toolCalls: allToolCalls,
             toolResults: allToolResults,
             canRollback: allToolResults.some(result => result.ok),
