@@ -31,7 +31,7 @@ import {
     Settings24Regular,
 } from '@fluentui/react-icons';
 import { streamDeepSeek } from '../services/deepseekService';
-import { runAgentTurn } from '../services/agentLoopService';
+import { AgentRunEvent, runAgentTurn } from '../services/agentLoopService';
 import { restoreSnapshot } from '../services/documentSnapshotService';
 import {
     isHtmlFormat,
@@ -366,6 +366,8 @@ const App: React.FC = () => {
     const [pendingAgentCalls, setPendingAgentCalls] = useState<AgentToolCall[]>([]);
     const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
     const [agentStatus, setAgentStatus] = useState<string>('');
+    const [agentThinkingTokens, setAgentThinkingTokens] = useState(0);
+    const [agentTrace, setAgentTrace] = useState<string[]>([]);
 
     // 错误消息自动消失
     useEffect(() => {
@@ -483,6 +485,26 @@ const App: React.FC = () => {
         }
     }, [isStreaming]);
 
+    const handleAgentEvent = (event: string | AgentRunEvent) => {
+        if (typeof event === 'string') {
+            setAgentStatus(event);
+            setStreamingContent(event);
+            setAgentTrace(prev => [...prev, event].slice(-12));
+            return;
+        }
+
+        setAgentStatus(event.message);
+        if (event.type === 'thinking') {
+            setAgentThinkingTokens(prev => prev + event.tokens);
+            setAgentTrace(prev => [...prev, `↓ 约 ${event.tokens} tokens 思考`].slice(-12));
+        } else if (event.type === 'tool' || event.type === 'tool_result') {
+            setAgentTrace(prev => [...prev, event.message].slice(-12));
+        } else {
+            setAgentTrace(prev => [...prev, event.message].slice(-12));
+        }
+        setStreamingContent(event.message);
+    };
+
     const handleSendMessage = async () => {
         if (!input.trim()) return;
 
@@ -498,6 +520,9 @@ const App: React.FC = () => {
         setLoading(true);
         setIsStreaming(true);
         setStreamingContent('');
+        setAgentStatus('');
+        setAgentThinkingTokens(0);
+        setAgentTrace([]);
 
         let fullResponse = '';
 
@@ -517,10 +542,7 @@ const App: React.FC = () => {
                             .join('\n\n'),
                     },
                     activePreset,
-                    (event) => {
-                        setAgentStatus(event);
-                        setStreamingContent(event);
-                    }
+                    handleAgentEvent
                 );
 
                 if (result.snapshotId) {
@@ -651,6 +673,9 @@ const App: React.FC = () => {
         setLoading(true);
         setIsStreaming(true);
         setStreamingContent('正在执行已确认的 Agent 计划...');
+        setAgentStatus('正在执行已确认的 Agent 计划...');
+        setAgentThinkingTokens(0);
+        setAgentTrace(['正在执行已确认的 Agent 计划...']);
 
         try {
             const result = await runAgentTurn(
@@ -662,10 +687,7 @@ const App: React.FC = () => {
                     executePlannedCalls: pendingAgentCalls,
                 },
                 activePreset,
-                (event) => {
-                    setAgentStatus(event);
-                    setStreamingContent(event);
-                }
+                handleAgentEvent
             );
 
             if (result.snapshotId) setLastSnapshotId(result.snapshotId);
@@ -875,8 +897,27 @@ const App: React.FC = () => {
                         <div className={styles.streamingHeader}>
                             <Sparkle24Filled style={{ width: 14, height: 14 }} />
                             <span>{isFormulaMode ? '正在生成...' : (agentStatus || 'Agent 执行中...')}</span>
+                            {!isFormulaMode && (
+                                <span style={{ marginLeft: 'auto', color: tokens.colorNeutralForeground3 }}>
+                                    ↓ 约 {agentThinkingTokens} tokens
+                                </span>
+                            )}
                         </div>
-                        {streamingContent}
+                        {isFormulaMode ? (
+                            streamingContent
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {agentTrace.length === 0 ? (
+                                    <span>{streamingContent}</span>
+                                ) : (
+                                    agentTrace.map((line, index) => (
+                                        <span key={`${line}-${index}`} style={{ color: index === agentTrace.length - 1 ? tokens.colorNeutralForeground1 : tokens.colorNeutralForeground3 }}>
+                                            {line}
+                                        </span>
+                                    ))
+                                )}
+                            </div>
+                        )}
                         <div ref={streamingEndRef} />
                     </div>
                 )}

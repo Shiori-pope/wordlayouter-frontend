@@ -17,14 +17,23 @@ interface ChatMessage {
     content: string | null;
     tool_call_id?: string;
     tool_calls?: unknown[];
+    reasoning_content?: string;
 }
 
 interface ModelStep {
     content: string;
     toolCalls: AgentToolCall[];
+    reasoningContent?: string;
+    reasoningTokens: number;
 }
 
 const MAX_TOOL_STEPS = 8;
+
+export type AgentRunEvent =
+    | { type: 'status'; message: string }
+    | { type: 'thinking'; message: string; tokens: number }
+    | { type: 'tool'; message: string; toolName: AgentToolName }
+    | { type: 'tool_result'; message: string; toolName: AgentToolName; ok: boolean };
 
 function getModelApiKey(model: ModelConfig): string {
     return model.apiKeyStorageKey ? getApiKey(model.apiKeyStorageKey) : '';
@@ -85,10 +94,17 @@ function parseJsonFallback(content: string): ModelStep | null {
         const toolCalls = rawCalls
             .map(validateToolCall)
             .filter(Boolean) as AgentToolCall[];
-        return { content: String(parsed.final || parsed.plan?.summary || content), toolCalls };
+        return { content: String(parsed.final || parsed.plan?.summary || content), toolCalls, reasoningTokens: 0 };
     } catch {
         return null;
     }
+}
+
+function estimateTokens(text: string): number {
+    if (!text) return 0;
+    const cjkChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+    const nonCjkChars = text.length - cjkChars;
+    return Math.ceil(cjkChars * 0.8 + nonCjkChars / 4);
 }
 
 function normalizeOpenAIToolCalls(rawCalls: unknown[] | undefined): AgentToolCall[] {
@@ -147,8 +163,14 @@ async function callOpenAICompatible(
     const data = await response.json();
     const message = data.choices?.[0]?.message || {};
     const content = message.content || '';
+    const reasoningContent = message.reasoning_content || message.reasoning?.content || '';
     const toolCalls = normalizeOpenAIToolCalls(message.tool_calls);
-    return parseJsonFallback(content) || { content, toolCalls };
+    return parseJsonFallback(content) || {
+        content,
+        toolCalls,
+        reasoningContent,
+        reasoningTokens: estimateTokens(reasoningContent),
+    };
 }
 
 async function callAnthropic(
@@ -204,7 +226,7 @@ async function callAnthropic(
         }))
         .filter(Boolean) as AgentToolCall[];
 
-    return parseJsonFallback(text) || { content: text, toolCalls };
+    return parseJsonFallback(text) || { content: text, toolCalls, reasoningTokens: 0 };
 }
 
 async function callGoogleOrFallback(model: ModelConfig, messages: ChatMessage[]): Promise<ModelStep> {
@@ -239,7 +261,7 @@ async function callGoogleOrFallback(model: ModelConfig, messages: ChatMessage[])
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return parseJsonFallback(text) || { content: text, toolCalls: [] };
+    return parseJsonFallback(text) || { content: text, toolCalls: [], reasoningTokens: 0 };
 }
 
 async function callAgentModel(model: ModelConfig, messages: ChatMessage[], useTools: boolean): Promise<ModelStep> {
@@ -274,7 +296,7 @@ ${contextText}`;
 export async function runAgentTurn(
     options: AgentRunOptions,
     layoutPreset?: LayoutPreset | null,
-    onEvent?: (event: string) => void
+    onEvent?: (event: string | AgentRunEvent) => void
 ): Promise<AgentRunResult> {
     const snapshot = await createTurnSnapshot(`Agent turn: ${options.userMessage.slice(0, 40)}`);
     const allToolCalls: AgentToolCall[] = [];
@@ -290,10 +312,11 @@ export async function runAgentTurn(
 
         if (options.executePlannedCalls?.length) {
             for (const call of options.executePlannedCalls) {
-                onEvent?.(`执行工具：${call.name}`);
+                onEvent?.({ type: 'tool', message: `调用工具：${call.name}`, toolName: call.name });
                 const result = await executeWordTool(call);
                 allToolCalls.push(call);
                 allToolResults.push(result);
+                onEvent?.({ type: 'tool_result', message: `${result.ok ? '✓' : '✗'} ${result.summary}`, toolName: call.name, ok: result.ok });
                 if (!result.ok && !result.error?.recoverable) {
                     throw new Error(result.error?.message || result.summary);
                 }
@@ -318,8 +341,11 @@ export async function runAgentTurn(
         const maxSteps = options.maxSteps || MAX_TOOL_STEPS;
 
         for (let stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
-            onEvent?.(`Agent 思考中 (${stepIndex + 1}/${maxSteps})`);
+            onEvent?.({ type: 'status', message: `Agent 思考中 (${stepIndex + 1}/${maxSteps})` });
             const step = await callAgentModel(options.model, messages, true);
+            if (step.reasoningTokens > 0) {
+                onEvent?.({ type: 'thinking', message: `模型完成思考`, tokens: step.reasoningTokens });
+            }
             finalMessage = step.content || finalMessage;
 
             if (step.toolCalls.length === 0) {
@@ -348,6 +374,7 @@ export async function runAgentTurn(
             messages.push({
                 role: 'assistant',
                 content: step.content || null,
+                reasoning_content: step.reasoningContent,
                 tool_calls: step.toolCalls.map(call => ({
                     id: call.id,
                     type: 'function',
@@ -359,10 +386,11 @@ export async function runAgentTurn(
             });
 
             for (const call of step.toolCalls) {
-                onEvent?.(`执行工具：${call.name}`);
+                onEvent?.({ type: 'tool', message: `调用工具：${call.name}`, toolName: call.name });
                 const result = await executeWordTool(call);
                 allToolCalls.push(call);
                 allToolResults.push(result);
+                onEvent?.({ type: 'tool_result', message: `${result.ok ? '✓' : '✗'} ${result.summary}`, toolName: call.name, ok: result.ok });
                 messages.push({
                     role: 'tool',
                     tool_call_id: call.id,
