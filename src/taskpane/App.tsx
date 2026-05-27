@@ -31,6 +31,8 @@ import {
     Settings24Regular,
 } from '@fluentui/react-icons';
 import { streamDeepSeek } from '../services/deepseekService';
+import { runAgentTurn } from '../services/agentLoopService';
+import { restoreSnapshot } from '../services/documentSnapshotService';
 import {
     isHtmlFormat,
     containsMathFormula,
@@ -44,6 +46,7 @@ import { FileUploadButton, FileStrip } from '../components/FileUploadPanel';
 import { LayoutPreset, getActivePreset, setActivePresetId } from '../types/layoutPreset';
 import { ModelConfig, getActiveModel, migrateOldData } from '../types/modelConfig';
 import { ParsedFile } from '../utils/fileParser';
+import { AgentPermissionMode, AgentPlan, AgentToolCall } from '../types/agent';
 
 /* global Word */
 
@@ -358,6 +361,11 @@ const App: React.FC = () => {
     const [fileError, setFileError] = useState<string | null>(null);
     const [userScrolling, setUserScrolling] = useState(false);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const [agentPermissionMode, setAgentPermissionMode] = useState<AgentPermissionMode>('bypass');
+    const [pendingAgentPlan, setPendingAgentPlan] = useState<AgentPlan | null>(null);
+    const [pendingAgentCalls, setPendingAgentCalls] = useState<AgentToolCall[]>([]);
+    const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+    const [agentStatus, setAgentStatus] = useState<string>('');
 
     // 错误消息自动消失
     useEffect(() => {
@@ -494,6 +502,52 @@ const App: React.FC = () => {
         let fullResponse = '';
 
         try {
+            if (!isFormulaMode) {
+                setAgentStatus('正在创建快照并启动 Agent...');
+                setStreamingContent('正在创建快照并启动 Agent...');
+                const result = await runAgentTurn(
+                    {
+                        userMessage: currentInput,
+                        conversationHistory: messages,
+                        model: activeModel || getActiveModel(),
+                        permissionMode: agentPermissionMode,
+                        uploadedFilesText: uploadedFiles
+                            .filter(file => file.type === 'text')
+                            .map(file => `# ${file.fileName}\n${file.content}`)
+                            .join('\n\n'),
+                    },
+                    activePreset,
+                    (event) => {
+                        setAgentStatus(event);
+                        setStreamingContent(event);
+                    }
+                );
+
+                if (result.snapshotId) {
+                    setLastSnapshotId(result.snapshotId);
+                }
+
+                if (result.status === 'planned' && result.plan) {
+                    setPendingAgentPlan(result.plan);
+                    setPendingAgentCalls(result.plan.toolCalls);
+                } else {
+                    setPendingAgentPlan(null);
+                    setPendingAgentCalls([]);
+                }
+
+                const assistantMessage: Message = {
+                    role: 'assistant',
+                    content: result.status === 'planned'
+                        ? `Agent 执行计划：\n${result.plan?.summary || result.finalMessage}\n\n影响范围：${result.plan?.impact || '待确认'}`
+                        : `${result.finalMessage}\n\n工具执行：${result.toolResults.map(r => `${r.ok ? '✓' : '✗'} ${r.summary}`).join('\n')}`,
+                    timestamp: new Date(),
+                };
+
+                setMessages((prev) => [...prev, assistantMessage]);
+                setUploadedFiles([]);
+                return;
+            }
+
             const stream = streamDeepSeek(
                 messages,
                 currentInput,
@@ -589,6 +643,70 @@ const App: React.FC = () => {
         } catch (error) {
             console.error('插入失败:', error);
             alert('插入失败');
+        }
+    };
+
+    const handleExecutePendingPlan = async () => {
+        if (pendingAgentCalls.length === 0) return;
+        setLoading(true);
+        setIsStreaming(true);
+        setStreamingContent('正在执行已确认的 Agent 计划...');
+
+        try {
+            const result = await runAgentTurn(
+                {
+                    userMessage: pendingAgentPlan?.summary || '执行已确认的计划',
+                    conversationHistory: messages,
+                    model: activeModel || getActiveModel(),
+                    permissionMode: 'bypass',
+                    executePlannedCalls: pendingAgentCalls,
+                },
+                activePreset,
+                (event) => {
+                    setAgentStatus(event);
+                    setStreamingContent(event);
+                }
+            );
+
+            if (result.snapshotId) setLastSnapshotId(result.snapshotId);
+            setPendingAgentPlan(null);
+            setPendingAgentCalls([]);
+            setMessages((prev) => [...prev, {
+                role: 'assistant',
+                content: `${result.finalMessage}\n\n工具执行：${result.toolResults.map(r => `${r.ok ? '✓' : '✗'} ${r.summary}`).join('\n')}`,
+                timestamp: new Date(),
+            }]);
+        } catch (error) {
+            setMessages((prev) => [...prev, {
+                role: 'assistant',
+                content: `执行计划失败：${error instanceof Error ? error.message : String(error)}`,
+                timestamp: new Date(),
+            }]);
+        } finally {
+            setLoading(false);
+            setIsStreaming(false);
+            setStreamingContent('');
+        }
+    };
+
+    const handleRollbackLastSnapshot = async () => {
+        if (!lastSnapshotId) return;
+        setLoading(true);
+        try {
+            await restoreSnapshot(lastSnapshotId);
+            setMessages((prev) => [...prev, {
+                role: 'assistant',
+                content: '已回退到最近一次 Agent 会话开始前的文档状态。',
+                timestamp: new Date(),
+            }]);
+        } catch (error) {
+            setMessages((prev) => [...prev, {
+                role: 'assistant',
+                content: `回退失败：${error instanceof Error ? error.message : String(error)}`,
+                timestamp: new Date(),
+            }]);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -756,7 +874,7 @@ const App: React.FC = () => {
                     <div className={styles.streamingWindow}>
                         <div className={styles.streamingHeader}>
                             <Sparkle24Filled style={{ width: 14, height: 14 }} />
-                            <span>正在生成...</span>
+                            <span>{isFormulaMode ? '正在生成...' : (agentStatus || 'Agent 执行中...')}</span>
                         </div>
                         {streamingContent}
                         <div ref={streamingEndRef} />
@@ -828,6 +946,35 @@ const App: React.FC = () => {
                             uploadedFiles={uploadedFiles}
                             onError={setFileError}
                         />
+                        <Tooltip content="Agent 会先创建快照。标准模式只生成计划，bypass 会自动执行并支持回退。" relationship="label">
+                            <Button
+                                size="small"
+                                appearance={agentPermissionMode === 'bypass' ? 'primary' : 'subtle'}
+                                onClick={() => setAgentPermissionMode(mode => mode === 'bypass' ? 'standard' : 'bypass')}
+                            >
+                                {agentPermissionMode === 'bypass' ? 'Agent bypass' : 'Agent 标准'}
+                            </Button>
+                        </Tooltip>
+                        {pendingAgentPlan && (
+                            <Button
+                                size="small"
+                                appearance="primary"
+                                onClick={handleExecutePendingPlan}
+                                disabled={loading}
+                            >
+                                执行计划
+                            </Button>
+                        )}
+                        {lastSnapshotId && (
+                            <Button
+                                size="small"
+                                appearance="subtle"
+                                onClick={handleRollbackLastSnapshot}
+                                disabled={loading}
+                            >
+                                回退
+                            </Button>
+                        )}
                         <div
                             style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
                             onClick={handleToggleFormulaMode}
