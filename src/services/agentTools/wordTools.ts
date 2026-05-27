@@ -83,6 +83,111 @@ function inferHeadingLevel(text: string): number | undefined {
     return undefined;
 }
 
+function isLikelyTableCellText(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    if (trimmed.includes('\t')) return true;
+    return trimmed.length <= 12 && !inferHeadingLevel(trimmed);
+}
+
+function normalizeHeadingText(text: string): string {
+    return text.trim().replace(/\s+/g, ' ');
+}
+
+function buildHeadingSnapshot(paragraphs: Word.Paragraph[], maxDepth: number = 4) {
+    return paragraphs
+        .map((paragraph, index) => {
+            const text = normalizeHeadingText(paragraph.text || '');
+            const styled = String(paragraph.style || '').match(/heading\s*(\d)/i);
+            const level = styled ? Number(styled[1]) : inferHeadingLevel(text);
+            if (!text || !level || level > maxDepth || isLikelyTableCellText(text)) return null;
+            return {
+                rangeRef: rangeRefForParagraph(index),
+                paragraphIndex: index,
+                level,
+                text,
+                inferred: !styled,
+            };
+        })
+        .filter(Boolean) as Array<{ rangeRef: string; paragraphIndex: number; level: number; text: string; inferred: boolean }>;
+}
+
+function paragraphSummary(paragraph: Word.Paragraph, paragraphIndex: number, includeFormat: 'none' | 'summary' = 'summary') {
+    const text = normalizeHeadingText(paragraph.text || '');
+    return {
+        rangeRef: rangeRefForParagraph(paragraphIndex),
+        paragraphIndex,
+        text,
+        headingLevel: inferHeadingLevel(text),
+        style: includeFormat === 'summary' ? styleFromParagraph(paragraph) : undefined,
+    };
+}
+
+function extractTopicTerms(topic: string): string[] {
+    const normalized = topic
+        .replace(/[^\p{L}\p{N}\s._-]/gu, ' ')
+        .split(/\s+/)
+        .map(term => term.trim())
+        .filter(term => term.length >= 2);
+    const compact = topic.replace(/\s+/g, '').trim();
+    return Array.from(new Set([...normalized, compact].filter(Boolean)));
+}
+
+function findParagraphIndexContaining(paragraphs: Word.Paragraph[], query: string): number {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return -1;
+    return paragraphs.findIndex(paragraph => (paragraph.text || '').toLowerCase().includes(needle));
+}
+
+function resolveParagraphWindow(args: AnyRecord, paragraphCount: number): { start: number; end: number } {
+    const block = parseParagraphBlockRangeRef(asString(args.rangeRef));
+    if (block) return { start: clamp(block.start, 0, Math.max(0, paragraphCount - 1)), end: clamp(block.end, 0, Math.max(0, paragraphCount - 1)) };
+
+    const single = parseParagraphRangeRef(asString(args.rangeRef));
+    if (single !== null) {
+        const maxParagraphs = clamp(asNumber(args.maxParagraphs, 40), 1, 200);
+        const radius = Math.floor(maxParagraphs / 2);
+        return {
+            start: clamp(single - radius, 0, Math.max(0, paragraphCount - 1)),
+            end: clamp(single + radius, 0, Math.max(0, paragraphCount - 1)),
+        };
+    }
+
+    const after = parseParagraphRangeRef(asString(args.afterRangeRef));
+    if (after !== null) {
+        const maxParagraphs = clamp(asNumber(args.maxParagraphs, 40), 1, 200);
+        const start = clamp(after + 1, 0, Math.max(0, paragraphCount - 1));
+        return { start, end: clamp(start + maxParagraphs - 1, 0, Math.max(0, paragraphCount - 1)) };
+    }
+
+    const before = parseParagraphRangeRef(asString(args.beforeRangeRef));
+    if (before !== null) {
+        const maxParagraphs = clamp(asNumber(args.maxParagraphs, 40), 1, 200);
+        const end = clamp(before - 1, 0, Math.max(0, paragraphCount - 1));
+        return { start: clamp(end - maxParagraphs + 1, 0, Math.max(0, paragraphCount - 1)), end };
+    }
+
+    const maxParagraphs = clamp(asNumber(args.maxParagraphs, 40), 1, 200);
+    const start = clamp(asNumber(args.startParagraph, 0), 0, Math.max(0, paragraphCount - 1));
+    const explicitEnd = typeof args.endParagraph === 'number' ? asNumber(args.endParagraph, start + maxParagraphs - 1) : start + maxParagraphs - 1;
+    return {
+        start,
+        end: clamp(explicitEnd, start, Math.max(0, paragraphCount - 1)),
+    };
+}
+
+function buildSectionHtml(title: string, content: string, format: AgentContentFormat, level: number): string {
+    const headingLevel = clamp(level, 1, 3);
+    const normalizedContent = content.trim();
+    const escapedTitle = title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const titleAlreadyPresent = new RegExp(`^\\s*(?:#{1,3}\\s+|<p[^>]*>|<h[1-6][^>]*>)?${escapedTitle}`, 'i').test(normalizedContent);
+    const body = format === 'html'
+        ? stripHtmlFence(normalizedContent)
+        : markdownToWordHtml(normalizedContent);
+    const heading = `<p class="heading${headingLevel}">${escapeHtml(title.trim())}</p>`;
+    return titleAlreadyPresent ? body : `${heading}\n${body}`;
+}
+
 function trimAround(text: string, start: number, end: number, contextChars: number) {
     return {
         textBefore: text.slice(Math.max(0, start - contextChars), start),
@@ -266,11 +371,79 @@ async function insertByFormat(
 }
 
 export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
-    { name: 'get_document_outline', risk: 'read', description: 'Read document outline and basic statistics. Falls back to inferred numbered headings when Word heading styles are absent.', parameters: {} },
-    { name: 'get_selection', risk: 'read', description: 'Read current Word selection.', parameters: {} },
-    { name: 'read_range', risk: 'read', description: 'Read a previously returned rangeRef. Supports body:p10, body:p10-20, and body:p10:r0-12.', parameters: {} },
-    { name: 'grep_document', risk: 'read', description: 'Search document text efficiently and return range refs.', parameters: {} },
-    { name: 'insert_content', risk: 'write', description: 'Insert text, HTML, DocIR, or OOXML content. For document sections use format html and Word-friendly p.heading/p tags, not Markdown fences.', parameters: {} },
+    {
+        name: 'get_document_outline',
+        risk: 'read',
+        description: 'Read document outline, inferred numbered headings, stats, and tail headings. Use this first for document-structure tasks.',
+        parameters: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                includeStats: { type: 'boolean' },
+                maxDepth: { type: 'number' },
+                includeTailParagraphs: { type: 'boolean' },
+                tailCount: { type: 'number' },
+            },
+        },
+    },
+    { name: 'get_selection', risk: 'read', description: 'Read current Word selection.', parameters: { type: 'object', additionalProperties: false, properties: { format: { type: 'string', enum: ['text', 'docir', 'html', 'ooxml'] } } } },
+    { name: 'read_range', risk: 'read', description: 'Read a returned rangeRef. Supports body:p10, body:p10-20, and body:p10:r0-12. Prefer ranges over single-paragraph loops.', parameters: { type: 'object', additionalProperties: false, required: ['rangeRef'], properties: { rangeRef: { type: 'string' }, format: { type: 'string', enum: ['text', 'docir', 'html', 'ooxml'] }, maxChars: { type: 'number' } } } },
+    {
+        name: 'read_paragraphs',
+        risk: 'read',
+        description: 'Read many body paragraphs in one call with range refs, style summaries, and a max character budget. Use this instead of repeated read_range calls for nearby short paragraphs.',
+        parameters: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                startParagraph: { type: 'number' },
+                endParagraph: { type: 'number' },
+                rangeRef: { type: 'string' },
+                afterRangeRef: { type: 'string' },
+                beforeRangeRef: { type: 'string' },
+                maxParagraphs: { type: 'number' },
+                maxChars: { type: 'number' },
+                includeFormat: { type: 'string', enum: ['none', 'summary'] },
+            },
+        },
+    },
+    { name: 'grep_document', risk: 'read', description: 'Search document text and return range refs. Use for precise anchor queries, not for broad structure discovery.', parameters: { type: 'object', additionalProperties: false, required: ['query'], properties: { query: { type: 'string' }, maxResults: { type: 'number' }, contextChars: { type: 'number' }, includeFormat: { type: 'string', enum: ['none', 'summary', 'docir', 'ooxml'] }, mode: { type: 'string', enum: ['plain', 'wildcard', 'regex_fallback', 'semantic'] }, cursor: { type: 'string' } } } },
+    {
+        name: 'find_insert_position',
+        risk: 'read',
+        description: 'Find a high-confidence insertion point for adding a new section. Prefer this over manual grep/read loops for requests like add a chapter/section.',
+        parameters: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                topic: { type: 'string' },
+                afterHeadingQuery: { type: 'string' },
+                beforeHeadingQuery: { type: 'string' },
+                strategy: { type: 'string', enum: ['after_related', 'before_next_topic', 'append_after_last_heading'] },
+                maxContextParagraphs: { type: 'number' },
+            },
+        },
+    },
+    {
+        name: 'insert_section',
+        risk: 'write',
+        description: 'Insert a complete Word-rendered section at a located paragraph. Accepts HTML or Markdown and renders it, never inserts source-code fences.',
+        parameters: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['title', 'content'],
+            properties: {
+                title: { type: 'string' },
+                content: { type: 'string' },
+                format: { type: 'string', enum: ['html', 'markdown', 'text'] },
+                afterRangeRef: { type: 'string' },
+                beforeRangeRef: { type: 'string' },
+                anchorQuery: { type: 'string' },
+                level: { type: 'number' },
+            },
+        },
+    },
+    { name: 'insert_content', risk: 'write', description: 'Low-level insert text, HTML, DocIR, or OOXML content. For full sections prefer insert_section.', parameters: { type: 'object', required: ['content'], properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, format: { type: 'string', enum: ['text', 'html', 'docir', 'ooxml'] }, content: { type: 'string' } } } },
     { name: 'replace_range', risk: 'write', description: 'Replace a rangeRef with new content.', parameters: {} },
     { name: 'delete_range', risk: 'destructive', description: 'Delete a rangeRef.', parameters: {} },
     { name: 'set_paragraph_format', risk: 'write', description: 'Apply paragraph formatting.', parameters: {} },
@@ -314,8 +487,14 @@ export async function executeWordTool(call: AgentToolCall): Promise<ToolResult> 
                 return await getSelectionTool(call);
             case 'read_range':
                 return await readRange(call);
+            case 'read_paragraphs':
+                return await readParagraphs(call);
             case 'grep_document':
                 return await grepDocument(call);
+            case 'find_insert_position':
+                return await findInsertPosition(call);
+            case 'insert_section':
+                return await insertSection(call);
             case 'insert_content':
                 return await insertContent(call);
             case 'replace_range':
@@ -365,6 +544,7 @@ export async function executeWordTool(call: AgentToolCall): Promise<ToolResult> 
 async function getDocumentOutline(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const maxDepth = clamp(asNumber(args.maxDepth, 3), 1, 9);
+    const tailCount = clamp(asNumber(args.tailCount, 12), 0, 50);
     return Word.run(async (context) => {
         const paragraphs = context.document.body.paragraphs;
         paragraphs.load('items/text,items/style');
@@ -374,18 +554,25 @@ async function getDocumentOutline(call: AgentToolCall): Promise<ToolResult> {
         sections.load('items');
         await context.sync();
 
-        const outline = paragraphs.items
-            .map((paragraph, index) => {
-                const text = paragraph.text.trim();
-                const match = String(paragraph.style || '').match(/heading\s*(\d)/i);
-                const level = match ? Number(match[1]) : inferHeadingLevel(text);
-                if (!text || !level || level > maxDepth) return null;
-                return { rangeRef: rangeRefForParagraph(index), level, text, inferred: !match };
-            })
-            .filter(Boolean);
+        const outline = buildHeadingSnapshot(paragraphs.items, maxDepth);
+        const tailParagraphs = tailCount > 0
+            ? paragraphs.items
+                .slice(Math.max(0, paragraphs.items.length - tailCount))
+                .map((paragraph, offset) => {
+                    const paragraphIndex = Math.max(0, paragraphs.items.length - tailCount) + offset;
+                    return {
+                        rangeRef: rangeRefForParagraph(paragraphIndex),
+                        paragraphIndex,
+                        text: normalizeHeadingText(paragraph.text || '').slice(0, 180),
+                        headingLevel: inferHeadingLevel(paragraph.text || ''),
+                    };
+                })
+                .filter(item => item.text)
+            : [];
 
         const data = {
             outline,
+            tailParagraphs,
             stats: {
                 paragraphs: paragraphs.items.length,
                 tables: tables.items.length,
@@ -450,6 +637,52 @@ async function readRange(call: AgentToolCall): Promise<ToolResult> {
     });
 }
 
+async function readParagraphs(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const maxChars = clamp(asNumber(args.maxChars, 8000), 500, 30000);
+    const includeFormat = args.includeFormat === 'none' ? 'none' : 'summary';
+
+    return Word.run(async (context) => {
+        const paragraphs = context.document.body.paragraphs;
+        paragraphs.load('items/text,items/style,items/font,items/alignment');
+        await context.sync();
+
+        if (paragraphs.items.length === 0) {
+            return ok(call, { paragraphs: [], text: '', truncated: false }, '读取到 0 个段落');
+        }
+
+        const window = resolveParagraphWindow(args, paragraphs.items.length);
+        const items = [];
+        let usedChars = 0;
+        let truncated = false;
+
+        for (let index = window.start; index <= window.end; index++) {
+            const paragraph = paragraphs.items[index];
+            const text = paragraph.text || '';
+            if (items.length > 0 && usedChars + text.length > maxChars) {
+                truncated = true;
+                break;
+            }
+            usedChars += text.length + 1;
+            items.push(paragraphSummary(paragraph, index, includeFormat));
+        }
+
+        const last = items.length > 0 ? items[items.length - 1].paragraphIndex : window.start;
+        const nextStart = last + 1 <= window.end ? last + 1 : undefined;
+        const data = {
+            rangeRef: `body:p${window.start}-${last}`,
+            startParagraph: window.start,
+            endParagraph: last,
+            paragraphs: items,
+            text: items.map(item => item.text).join('\n'),
+            truncated,
+            nextCursor: nextStart !== undefined ? String(nextStart) : undefined,
+            nextRangeRef: nextStart !== undefined ? `body:p${nextStart}-${window.end}` : undefined,
+        };
+        return ok(call, data, `已批量读取 ${items.length} 个段落`);
+    });
+}
+
 async function grepDocument(call: AgentToolCall): Promise<ToolResult<GrepDocumentResult>> {
     const params = asRecord(call.arguments) as unknown as GrepDocumentParams;
     const query = String(params.query || '').trim();
@@ -500,6 +733,136 @@ async function grepDocument(call: AgentToolCall): Promise<ToolResult<GrepDocumen
         };
         return ok(call, result, `检索到 ${page.length} 条匹配`);
     });
+}
+
+async function findInsertPosition(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const topic = asString(args.topic);
+    const afterHeadingQuery = asString(args.afterHeadingQuery);
+    const beforeHeadingQuery = asString(args.beforeHeadingQuery);
+    const strategy = asString(args.strategy, 'after_related');
+    const maxContextParagraphs = clamp(asNumber(args.maxContextParagraphs, 8), 2, 30);
+
+    return Word.run(async (context) => {
+        const paragraphs = context.document.body.paragraphs;
+        paragraphs.load('items/text,items/style,items/font,items/alignment');
+        await context.sync();
+
+        if (paragraphs.items.length === 0) {
+            return ok(call, {
+                target: 'body',
+                location: 'end',
+                confidence: 0.4,
+                rationale: '文档没有可定位段落，降级到正文末尾',
+                nearby: [],
+            }, '已定位到文档末尾');
+        }
+
+        const outline = buildHeadingSnapshot(paragraphs.items, 4);
+        let paragraphIndex = -1;
+        let location: 'before' | 'after' | 'end' = 'after';
+        let confidence = 0.5;
+        let rationale = '';
+
+        if (afterHeadingQuery) {
+            paragraphIndex = findParagraphIndexContaining(paragraphs.items, afterHeadingQuery);
+            location = 'after';
+            confidence = paragraphIndex >= 0 ? 0.9 : confidence;
+            rationale = paragraphIndex >= 0 ? `匹配 afterHeadingQuery: ${afterHeadingQuery}` : '';
+        }
+
+        if (paragraphIndex < 0 && beforeHeadingQuery) {
+            paragraphIndex = findParagraphIndexContaining(paragraphs.items, beforeHeadingQuery);
+            location = 'before';
+            confidence = paragraphIndex >= 0 ? 0.9 : confidence;
+            rationale = paragraphIndex >= 0 ? `匹配 beforeHeadingQuery: ${beforeHeadingQuery}` : '';
+        }
+
+        if (paragraphIndex < 0 && strategy !== 'append_after_last_heading') {
+            const terms = extractTopicTerms(topic);
+            let bestScore = 0;
+            for (let index = 0; index < paragraphs.items.length; index++) {
+                const text = (paragraphs.items[index].text || '').toLowerCase();
+                const score = terms.reduce((sum, term) => sum + (text.includes(term.toLowerCase()) ? Math.max(2, term.length) : 0), 0);
+                if (score > bestScore) {
+                    bestScore = score;
+                    paragraphIndex = index;
+                }
+            }
+            if (paragraphIndex >= 0) {
+                location = 'after';
+                confidence = bestScore >= 6 ? 0.78 : 0.62;
+                rationale = `找到与主题“${topic}”相关的段落`;
+            }
+        }
+
+        if (paragraphIndex < 0 && outline.length > 0) {
+            const lastHeading = outline[outline.length - 1];
+            paragraphIndex = lastHeading.paragraphIndex;
+            location = 'after';
+            confidence = 0.58;
+            rationale = `未找到主题锚点，使用最后一个标题“${lastHeading.text}”`;
+        }
+
+        if (paragraphIndex < 0) {
+            paragraphIndex = paragraphs.items.length - 1;
+            location = 'after';
+            confidence = 0.45;
+            rationale = '未找到标题或主题锚点，使用最后一个段落';
+        }
+
+        const radius = Math.floor(maxContextParagraphs / 2);
+        const start = clamp(paragraphIndex - radius, 0, paragraphs.items.length - 1);
+        const end = clamp(paragraphIndex + radius, start, paragraphs.items.length - 1);
+        const nearby = [];
+        for (let index = start; index <= end; index++) {
+            nearby.push(paragraphSummary(paragraphs.items[index], index, 'summary'));
+        }
+
+        const target = rangeRefForParagraph(paragraphIndex);
+        return ok(call, {
+            target,
+            location,
+            confidence,
+            rationale,
+            nearby,
+            outlineTail: outline.slice(Math.max(0, outline.length - 8)),
+        }, `已定位插入点：${location} ${target}`);
+    });
+}
+
+async function insertSection(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const title = asString(args.title).trim();
+    const content = asString(args.content).trim();
+    const level = clamp(asNumber(args.level, 1), 1, 3);
+    const requestedFormat: AgentContentFormat = args.format === 'html' ? 'html' : 'text';
+    const afterRangeRef = asString(args.afterRangeRef);
+    const beforeRangeRef = asString(args.beforeRangeRef);
+    const anchorQuery = asString(args.anchorQuery);
+
+    if (!title) return fail(call, 'INVALID_ARGS', 'insert_section 缺少 title');
+    if (!content) return fail(call, 'INVALID_ARGS', 'insert_section 缺少 content');
+
+    const html = buildSectionHtml(title, content, requestedFormat, level);
+    let target = afterRangeRef || beforeRangeRef || 'body';
+    let location: Word.InsertLocation = afterRangeRef ? Word.InsertLocation.after : beforeRangeRef ? Word.InsertLocation.before : Word.InsertLocation.end;
+
+    await Word.run(async (context) => {
+        if (!afterRangeRef && !beforeRangeRef && anchorQuery) {
+            const paragraphs = context.document.body.paragraphs;
+            paragraphs.load('items/text');
+            await context.sync();
+            const anchorIndex = findParagraphIndexContaining(paragraphs.items, anchorQuery);
+            if (anchorIndex >= 0) {
+                target = rangeRefForParagraph(anchorIndex);
+                location = Word.InsertLocation.after;
+            }
+        }
+        await insertByFormat(context, target, location, html, 'html');
+    });
+
+    return ok(call, { title, target, location: location.toString(), format: 'html' }, `已插入章节：${title}`);
 }
 
 async function insertContent(call: AgentToolCall): Promise<ToolResult> {
