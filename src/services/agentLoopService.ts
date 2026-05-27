@@ -59,6 +59,9 @@ function buildAgentSystemPrompt(permissionMode: string, layoutPreset?: LayoutPre
 4. 当前权限模式：${permissionMode}。standard 模式只输出计划和工具调用；bypass 模式可以直接执行。
 5. 复杂格式优先使用 DocIR 或 HTML；精确底层结构、页眉页脚、目录、回退使用 OOXML 或专用工具。
 6. 工具执行后要验证关键结果，最终用中文简洁说明做了什么。
+7. 用户要求“增加章节/插入小节/补充一节”时，优先调用 get_document_outline 确定章节结构；如果大纲为空，工具会基于编号文本推断标题。选定插入点后调用 insert_content，target 使用相邻章节段落 rangeRef，location 使用 "after"。
+8. 插入富文本内容必须使用 format:"html"，content 直接给 <p class="heading1|heading2|heading3"> 和 <p> 等 HTML 片段；禁止把 Markdown 代码块或 HTML 代码围栏作为正文插入。
+9. read_range 支持 body:p10 和 body:p10-20。需要连续阅读时优先读取段落区间，避免逐段调用。
 
 当前版式预设：
 ${layoutPreset?.formatDescription || '未指定'}
@@ -120,7 +123,10 @@ function previewArgs(args: unknown, maxChars = 220): string {
 
 function debugAgent(label: string, payload?: unknown) {
     try {
-        console.debug(`[WordAgent] ${label}`, payload || '');
+        const entry = { time: new Date().toISOString(), label, payload };
+        const debugWindow = window as unknown as { __WORD_AGENT_DEBUG__?: unknown[] };
+        debugWindow.__WORD_AGENT_DEBUG__ = [...(debugWindow.__WORD_AGENT_DEBUG__ || []), entry].slice(-500);
+        console.log(`[WordAgent] ${label}`, payload || '');
     } catch {
         // ignore console failures in older hosts
     }

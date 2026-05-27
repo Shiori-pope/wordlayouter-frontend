@@ -60,8 +60,27 @@ function parseParagraphTextSpan(rangeRef: string): { paragraphIndex: number; sta
     };
 }
 
+function parseParagraphBlockRangeRef(rangeRef: string): { start: number; end: number } | null {
+    const match = rangeRef.match(/^body:p(\d+)-(\d+)$/);
+    if (!match) return null;
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    return { start: Math.min(start, end), end: Math.max(start, end) };
+}
+
 function rangeRefForParagraph(index: number): string {
     return `body:p${index}`;
+}
+
+function inferHeadingLevel(text: string): number | undefined {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length > 80) return undefined;
+    if (/^第[一二三四五六七八九十百\d]+[章节篇]\s*/.test(trimmed)) return 1;
+    if (/^[一二三四五六七八九十]+[、.．]\s*/.test(trimmed)) return 1;
+    if (/^[(（][一二三四五六七八九十\d]+[)）]\s*/.test(trimmed)) return 2;
+    const dotted = trimmed.match(/^(\d+(?:\.\d+){0,3})[、.．\s]/);
+    if (dotted) return Math.min(dotted[1].split('.').length, 4);
+    return undefined;
 }
 
 function trimAround(text: string, start: number, end: number, contextChars: number) {
@@ -88,6 +107,66 @@ function insertLocation(value: unknown): Word.InsertLocation {
 
 function normalizeFormat(value: unknown): AgentContentFormat {
     return value === 'html' || value === 'docir' || value === 'ooxml' ? value : 'text';
+}
+
+function looksLikeHtml(content: string): boolean {
+    return /<\/?(p|div|span|table|ul|ol|li|pre|h[1-6]|b|strong|i|em|u)\b/i.test(content)
+        || /^```html/i.test(content.trim());
+}
+
+function stripHtmlFence(content: string): string {
+    const trimmed = content.trim();
+    return trimmed.replace(/^```html\s*/i, '').replace(/```$/i, '').trim();
+}
+
+function markdownToWordHtml(content: string): string {
+    const stripped = content.trim().replace(/^```(?:markdown|md)?\s*/i, '').replace(/```$/i, '').trim();
+    const lines = stripped.split(/\r?\n/);
+    const html: string[] = [];
+    let paragraph: string[] = [];
+
+    const flushParagraph = () => {
+        if (paragraph.length === 0) return;
+        html.push(`<p>${escapeHtml(paragraph.join(' ').trim())}</p>`);
+        paragraph = [];
+    };
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            flushParagraph();
+            continue;
+        }
+        const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+            flushParagraph();
+            const level = heading[1].length;
+            html.push(`<p class="heading${level}">${escapeHtml(heading[2])}</p>`);
+            continue;
+        }
+        paragraph.push(trimmed);
+    }
+    flushParagraph();
+    return html.join('\n');
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function coerceContentFormat(content: string, requestedFormat: AgentContentFormat): { content: string; format: AgentContentFormat } {
+    if (requestedFormat === 'html') return { content: stripHtmlFence(content), format: 'html' };
+    if (requestedFormat !== 'text') return { content, format: requestedFormat };
+    if (looksLikeHtml(content)) return { content: stripHtmlFence(content), format: 'html' };
+    if (/^```(?:markdown|md)?/i.test(content.trim()) || /^#{1,3}\s+/m.test(content)) {
+        return { content: markdownToWordHtml(content), format: 'html' };
+    }
+    return { content, format: requestedFormat };
 }
 
 function styleFromParagraph(paragraph: Word.Paragraph): CssLikeStyle {
@@ -127,6 +206,17 @@ async function getTargetRange(context: Word.RequestContext, target: AgentTarget)
     if (target === 'body') {
         return context.document.body.getRange();
     }
+    const blockRange = parseParagraphBlockRangeRef(target);
+    if (blockRange) {
+        const paragraphs = context.document.body.paragraphs;
+        paragraphs.load('items');
+        await context.sync();
+        const first = paragraphs.items[blockRange.start];
+        const last = paragraphs.items[Math.min(blockRange.end, paragraphs.items.length - 1)];
+        if (first && last) {
+            return first.getRange().expandTo(last.getRange());
+        }
+    }
     const span = parseParagraphTextSpan(target);
     if (span) {
         const paragraph = await getParagraphByRef(context, `body:p${span.paragraphIndex}`);
@@ -161,25 +251,26 @@ async function insertByFormat(
     }
 
     const range = await getTargetRange(context, target);
-    if (format === 'html') {
-        range.insertHtml(content, location);
-    } else if (format === 'ooxml') {
-        range.insertOoxml(content, location);
-    } else if (format === 'docir') {
-        const html = docIRToHtml(JSON.parse(content));
+    const normalized = coerceContentFormat(content, format);
+    if (normalized.format === 'html') {
+        range.insertHtml(normalized.content, location);
+    } else if (normalized.format === 'ooxml') {
+        range.insertOoxml(normalized.content, location);
+    } else if (normalized.format === 'docir') {
+        const html = docIRToHtml(JSON.parse(normalized.content));
         range.insertHtml(html, location);
     } else {
-        range.insertText(content, location);
+        range.insertText(normalized.content, location);
     }
     await context.sync();
 }
 
 export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
-    { name: 'get_document_outline', risk: 'read', description: 'Read document outline and basic statistics.', parameters: {} },
+    { name: 'get_document_outline', risk: 'read', description: 'Read document outline and basic statistics. Falls back to inferred numbered headings when Word heading styles are absent.', parameters: {} },
     { name: 'get_selection', risk: 'read', description: 'Read current Word selection.', parameters: {} },
-    { name: 'read_range', risk: 'read', description: 'Read a previously returned rangeRef.', parameters: {} },
+    { name: 'read_range', risk: 'read', description: 'Read a previously returned rangeRef. Supports body:p10, body:p10-20, and body:p10:r0-12.', parameters: {} },
     { name: 'grep_document', risk: 'read', description: 'Search document text efficiently and return range refs.', parameters: {} },
-    { name: 'insert_content', risk: 'write', description: 'Insert text, HTML, DocIR, or OOXML content.', parameters: {} },
+    { name: 'insert_content', risk: 'write', description: 'Insert text, HTML, DocIR, or OOXML content. For document sections use format html and Word-friendly p.heading/p tags, not Markdown fences.', parameters: {} },
     { name: 'replace_range', risk: 'write', description: 'Replace a rangeRef with new content.', parameters: {} },
     { name: 'delete_range', risk: 'destructive', description: 'Delete a rangeRef.', parameters: {} },
     { name: 'set_paragraph_format', risk: 'write', description: 'Apply paragraph formatting.', parameters: {} },
@@ -287,9 +378,9 @@ async function getDocumentOutline(call: AgentToolCall): Promise<ToolResult> {
             .map((paragraph, index) => {
                 const text = paragraph.text.trim();
                 const match = String(paragraph.style || '').match(/heading\s*(\d)/i);
-                const level = match ? Number(match[1]) : undefined;
+                const level = match ? Number(match[1]) : inferHeadingLevel(text);
                 if (!text || !level || level > maxDepth) return null;
-                return { rangeRef: rangeRefForParagraph(index), level, text };
+                return { rangeRef: rangeRefForParagraph(index), level, text, inferred: !match };
             })
             .filter(Boolean);
 
@@ -414,11 +505,12 @@ async function grepDocument(call: AgentToolCall): Promise<ToolResult<GrepDocumen
 async function insertContent(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const content = asString(args.content);
-    const format = normalizeFormat(args.format);
+    const requestedFormat = normalizeFormat(args.format);
+    const { format } = coerceContentFormat(content, requestedFormat);
     const target = asString(args.target, 'selection');
     if (!content) return fail(call, 'INVALID_ARGS', 'insert_content 缺少 content');
     await Word.run(async (context) => {
-        await insertByFormat(context, target, insertLocation(args.location), content, format);
+        await insertByFormat(context, target, insertLocation(args.location), content, requestedFormat);
     });
     return ok(call, { target, format }, '已插入内容');
 }
@@ -428,8 +520,10 @@ async function replaceRange(call: AgentToolCall): Promise<ToolResult> {
     const rangeRef = asString(args.rangeRef);
     const content = asString(args.content);
     if (!rangeRef) return fail(call, 'INVALID_ARGS', 'replace_range 缺少 rangeRef');
+    const requestedFormat = normalizeFormat(args.format);
+    const { format } = coerceContentFormat(content, requestedFormat);
     await Word.run(async (context) => {
-        await insertByFormat(context, rangeRef, Word.InsertLocation.replace, content, normalizeFormat(args.format));
+        await insertByFormat(context, rangeRef, Word.InsertLocation.replace, content, requestedFormat);
     });
     return ok(call, { rangeRef }, '已替换范围');
 }

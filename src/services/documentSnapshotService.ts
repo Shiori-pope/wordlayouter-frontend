@@ -90,7 +90,7 @@ function byteArrayToBase64(bytes: number[]): string {
 
 function getCompressedDocumentBase64(): Promise<string> {
     return new Promise((resolve, reject) => {
-        if (!Office?.context?.document?.getFileAsync) {
+        if (typeof Office === 'undefined' || !Office.context?.document?.getFileAsync) {
             reject(new Error('Office getFileAsync is unavailable'));
             return;
         }

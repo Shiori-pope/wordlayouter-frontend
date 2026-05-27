@@ -526,11 +526,11 @@ const App: React.FC = () => {
             setAgentStatus(event);
             setStreamingContent(event);
             appendAgentTrace(event);
-            console.debug('[WordAgent:UI]', event);
+            console.log('[WordAgent:UI]', event);
             return;
         }
 
-        console.debug('[WordAgent:UI]', event);
+        console.log('[WordAgent:UI]', event);
         setAgentStatus(event.message);
         if (event.type === 'thinking') {
             animateAgentTokensTo(event.totalTokens);
