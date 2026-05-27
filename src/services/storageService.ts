@@ -4,7 +4,6 @@
  */
 
 import { PluginSettings, DEFAULT_SETTINGS } from '../types/settings';
-import { ModelConfig } from '../types/modelConfig';
 import { Conversation, Message } from './conversationService';
 
 // Storage Keys

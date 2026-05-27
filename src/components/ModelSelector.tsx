@@ -32,6 +32,7 @@ import {
   getApiKey,
   saveApiKey,
   hasApiKey,
+  getProviderName,
 } from '../types/modelConfig';
 
 const useStyles = makeStyles({
@@ -223,7 +224,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange, onOpenSett
                     <Text style={{ fontSize: '10px', color: isActive ? '#667eea' : '#ccc' }}>
                       {isActive ? '●' : '○'}
                     </Text>
-                    <span className={styles.modelName}>{model.name}</span>
+                    <span className={styles.modelName}>
+                      {model.name}
+                      <Text size={100} style={{ color: '#999', fontSize: '10px', marginLeft: '4px' }}>
+                        {getProviderName(model.provider)}
+                      </Text>
+                    </span>
                     {isActive && <Checkmark24Regular style={{ width: 14, height: 14, color: '#667eea' }} />}
                     {model.apiKeyStorageKey && (
                       <Button
@@ -238,6 +244,20 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange, onOpenSett
                 );
               })
             )}
+            {models.length > 0 && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '8px',
+                  borderTop: '1px solid #eee',
+                  marginTop: '4px',
+                }}
+              >
+                <span className={styles.emptyLink} onClick={handleOpenSettings}>
+                  管理提供商
+                </span>
+              </div>
+            )}
           </div>
         </PopoverSurface>
       </Popover>
@@ -246,10 +266,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onModelChange, onOpenSett
       <Dialog open={isKeyDialogOpen} onOpenChange={(_, data) => setIsKeyDialogOpen(data.open)}>
         <DialogSurface>
           <DialogBody>
-            <DialogTitle>配置 API Key</DialogTitle>
+            <DialogTitle>
+              配置 {editingModel?.provider ? getProviderName(editingModel.provider) : ''} API Key
+            </DialogTitle>
             <DialogContent>
               <Text style={{ marginBottom: '12px', display: 'block' }}>
-                为 {editingModel?.name} 配置 API Key
+                该提供商的全部模型将共享此 Key
               </Text>
               <div className={styles.formField}>
                 <label className={styles.formLabel}>API Key</label>

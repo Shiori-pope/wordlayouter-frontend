@@ -42,7 +42,7 @@ import ModelSelector from '../components/ModelSelector';
 import SettingsPanel from '../components/SettingsPanel';
 import { FileUploadButton, FileStrip } from '../components/FileUploadPanel';
 import { LayoutPreset, getActivePreset, setActivePresetId } from '../types/layoutPreset';
-import { ModelConfig, getActiveModel } from '../types/modelConfig';
+import { ModelConfig, getActiveModel, migrateOldData } from '../types/modelConfig';
 import { ParsedFile } from '../utils/fileParser';
 
 /* global Word */
@@ -368,6 +368,7 @@ const App: React.FC = () => {
     }, [fileError]);
 
     useEffect(() => {
+        migrateOldData();
         let preset = getActivePreset();
         if (!preset) {
             // 默认选中高阶预设版式1

@@ -13,13 +13,14 @@ import {
     Spinner,
 } from '@fluentui/react-components';
 import {
-    PROVIDER_NAMES,
-    PROVIDER_API_KEYS,
-    getAllModels,
+    getProviderPreset,
+    getProvidersByCategory,
+    CATEGORY_META,
+    PROVIDER_CATALOG,
     getApiKey,
     saveApiKey,
-    ModelProvider,
-    getModelsByProvider,
+    ProviderCategory,
+    ProviderPreset,
 } from '../types/modelConfig';
 
 const useStyles = makeStyles({
@@ -39,44 +40,51 @@ const useStyles = makeStyles({
         fontSize: '13px',
         color: '#666',
     },
-    providerSection: {
-        display: 'flex',
-        flexDirection: 'column',
-        ...shorthands.gap('8px'),
+    categorySection: {
+        marginBottom: '8px',
     },
-    providerHeader: {
+    categoryTitle: {
+        fontSize: '13px',
+        fontWeight: '600',
+        color: '#555',
+        marginBottom: '4px',
+    },
+    providerRow: {
         display: 'flex',
         alignItems: 'center',
-        ...shorthands.gap('8px'),
+        ...shorthands.gap('10px'),
+        ...shorthands.padding('8px', '10px'),
+        ...shorthands.borderRadius('6px'),
+        border: '1px solid #e8e8e8',
+        background: '#fafafa',
+        marginBottom: '6px',
     },
     providerName: {
-        fontSize: '14px',
+        fontSize: '13px',
         fontWeight: '600',
+        minWidth: '120px',
     },
-    modelList: {
-        display: 'flex',
-        flexDirection: 'column',
-        ...shorthands.gap('4px'),
-        paddingLeft: '16px',
-        fontSize: '12px',
+    providerUrl: {
+        fontSize: '11px',
         color: '#888',
-    },
-    inputGroup: {
-        display: 'flex',
-        flexDirection: 'column',
-        ...shorthands.gap('4px'),
+        flex: 1,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
     },
     inputRow: {
         display: 'flex',
-        ...shorthands.gap('8px'),
+        ...shorthands.gap('6px'),
         alignItems: 'center',
+        minWidth: '260px',
     },
     input: {
-        flex: 1,
+        width: '180px',
+        fontSize: '12px',
     },
     statusIcon: {
-        width: '16px',
-        height: '16px',
+        fontSize: '11px',
+        fontWeight: '500',
     },
     configured: {
         color: '#107c10',
@@ -85,12 +93,13 @@ const useStyles = makeStyles({
         color: '#d13438',
     },
     testButton: {
-        minWidth: '60px',
+        minWidth: '50px',
     },
     message: {
         fontSize: '12px',
-        padding: '8px',
+        padding: '6px',
         ...shorthands.borderRadius('4px'),
+        marginTop: '4px',
     },
     successMessage: {
         background: '#dff6dd',
@@ -125,79 +134,84 @@ const ApiKeyPanel: React.FC<ApiKeyPanelProps> = ({ onClose }) => {
     const [testResult, setTestResult] = useState<{ key: string; success: boolean; message: string } | null>(null);
 
     useEffect(() => {
-        // Load all API keys
         const keys: Record<string, string> = {};
-        Object.values(PROVIDER_API_KEYS).forEach(storageKey => {
-            keys[storageKey] = getApiKey(storageKey);
-        });
+        for (const preset of PROVIDER_CATALOG) {
+            if (!preset.isLocal && preset.apiKeyStorageKey) {
+                keys[preset.id] = getApiKey(preset.apiKeyStorageKey);
+            }
+        }
         setApiKeys(keys);
     }, []);
 
-    const handleSaveKey = (provider: ModelProvider, value: string) => {
-        const storageKey = PROVIDER_API_KEYS[provider];
-        saveApiKey(storageKey, value);
-        setApiKeys(prev => ({ ...prev, [storageKey]: value }));
+    const handleSaveKey = (providerId: string, value: string) => {
+        const preset = getProviderPreset(providerId);
+        if (!preset) return;
+        saveApiKey(preset.apiKeyStorageKey, value);
+        setApiKeys(prev => ({ ...prev, [providerId]: value }));
     };
 
-    const handleTestKey = async (provider: ModelProvider) => {
-        const storageKey = PROVIDER_API_KEYS[provider];
-        const apiKey = apiKeys[storageKey];
+    const handleTestKey = async (preset: ProviderPreset) => {
+        const apiKey = apiKeys[preset.id];
 
         if (!apiKey) {
-            setTestResult({ key: provider, success: false, message: '请先输入 API Key' });
+            setTestResult({ key: preset.id, success: false, message: '请先输入 API Key' });
             return;
         }
 
-        setTesting(provider);
+        // Use first recommended model or a generic test
+        const testModelId = preset.recommendedModels[0]?.id || 'test';
+        const apiUrl = preset.baseUrl + preset.chatPath;
+
+        setTesting(preset.id);
         setTestResult(null);
 
         try {
-            // Simple test - try to call models endpoint
-            const models = getModelsByProvider()[provider];
-            if (!models || models.length === 0) {
-                setTestResult({ key: provider, success: false, message: '不支持该提供商' });
-                return;
-            }
-
-            const testModel = models[0];
-            const response = await fetch(testModel.apiUrl, {
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`,
                 },
                 body: JSON.stringify({
-                    model: testModel.id,
+                    model: testModelId,
                     messages: [{ role: 'user', content: 'Hi' }],
                     max_tokens: 5,
                 }),
             });
 
             if (response.ok) {
-                setTestResult({ key: provider, success: true, message: '连接成功！' });
+                setTestResult({ key: preset.id, success: true, message: '连接成功！' });
             } else if (response.status === 401 || response.status === 403) {
-                setTestResult({ key: provider, success: false, message: 'API Key 无效' });
+                setTestResult({ key: preset.id, success: false, message: 'API Key 无效' });
             } else if (response.status === 400) {
                 const errorData = await response.json().catch(() => ({}));
-                setTestResult({ key: provider, success: false, message: errorData.error?.message || '请求格式错误，请检查模型配置' });
+                setTestResult({
+                    key: preset.id,
+                    success: false,
+                    message: errorData.error?.message || '请求格式错误，请检查模型配置',
+                });
             } else {
                 const errorData = await response.json().catch(() => ({}));
-                setTestResult({ key: provider, success: false, message: errorData.error?.message || `错误 (${response.status})` });
+                setTestResult({
+                    key: preset.id,
+                    success: false,
+                    message: errorData.error?.message || `错误 (${response.status})`,
+                });
             }
-        } catch (error) {
-            setTestResult({ key: provider, success: false, message: '连接失败，请检查网络' });
+        } catch {
+            setTestResult({ key: preset.id, success: false, message: '连接失败，请检查网络' });
         } finally {
             setTesting(null);
         }
     };
 
-    const providers = Object.keys(PROVIDER_NAMES) as ModelProvider[];
-    const providerModels = getModelsByProvider();
-
-    const getKeyStatus = (provider: ModelProvider) => {
-        const storageKey = PROVIDER_API_KEYS[provider];
-        return !!apiKeys[storageKey];
-    };
+    const providerCategories = getProvidersByCategory();
+    const nonLocalProviders = Object.entries(providerCategories)
+        .filter(([, providers]) => providers.some(p => !p.isLocal))
+        .map(([category, providers]) => ({
+            category: category as ProviderCategory,
+            providers: providers.filter(p => !p.isLocal),
+        }));
 
     return (
         <div className={styles.root}>
@@ -208,63 +222,58 @@ const ApiKeyPanel: React.FC<ApiKeyPanelProps> = ({ onClose }) => {
                 </Text>
             </div>
 
-            <Accordion multiple defaultOpenItems={[providers[0]]}>
-                {providers.map(provider => {
-                    const isConfigured = getKeyStatus(provider);
-                    const models = providerModels[provider] || [];
-                    const storageKey = PROVIDER_API_KEYS[provider];
-                    const currentKey = apiKeys[storageKey] || '';
+            <Accordion multiple>
+                {nonLocalProviders.map(({ category, providers }) => (
+                    <AccordionItem key={category} value={category}>
+                        <AccordionHeader>
+                            <Text weight="semibold" size={400}>
+                                {CATEGORY_META[category]?.name ?? category}
+                            </Text>
+                        </AccordionHeader>
+                        <AccordionPanel>
+                            {providers.map(preset => {
+                                const isConfigured = !!apiKeys[preset.id];
+                                const currentKey = apiKeys[preset.id] || '';
 
-                    return (
-                        <AccordionItem key={provider} value={provider}>
-                            <AccordionHeader>
-                                <div className={styles.providerHeader}>
-                                    <Text className={styles.providerName}>
-                                        {PROVIDER_NAMES[provider]}
-                                    </Text>
-                                    <span className={isConfigured ? styles.configured : styles.notConfigured}>
-                                        {isConfigured ? '✓ 已配置' : '✗ 未配置'}
-                                    </span>
-                                </div>
-                            </AccordionHeader>
-                            <AccordionPanel>
-                                <div className={styles.providerSection}>
-                                    <div className={styles.modelList}>
-                                        {models.map(m => m.name).join(' / ') || '无内置模型'}
-                                    </div>
-
-                                    <div className={styles.inputGroup}>
-                                        <Label size="small">API Key</Label>
+                                return (
+                                    <div key={preset.id} className={styles.providerRow}>
+                                        <span className={styles.providerName}>{preset.name}</span>
+                                        <span className={styles.providerUrl}>
+                                            {preset.baseUrl}{preset.chatPath}
+                                        </span>
+                                        <span className={`${styles.statusIcon} ${isConfigured ? styles.configured : styles.notConfigured}`}>
+                                            {isConfigured ? '已配置' : '未配置'}
+                                        </span>
                                         <div className={styles.inputRow}>
                                             <Input
                                                 className={styles.input}
                                                 type="password"
+                                                size="small"
                                                 value={currentKey}
-                                                onChange={(e, data) => handleSaveKey(provider, data.value)}
-                                                placeholder={`输入 ${PROVIDER_NAMES[provider]} API Key`}
+                                                onChange={(_, data) => handleSaveKey(preset.id, data.value)}
+                                                placeholder="sk-..."
                                             />
                                             <Button
                                                 className={styles.testButton}
                                                 size="small"
                                                 appearance="primary"
-                                                onClick={() => handleTestKey(provider)}
-                                                disabled={testing === provider}
+                                                onClick={() => handleTestKey(preset)}
+                                                disabled={testing === preset.id}
                                             >
-                                                {testing === provider ? <Spinner size="tiny" /> : '测试'}
+                                                {testing === preset.id ? <Spinner size="tiny" /> : '测试'}
                                             </Button>
                                         </div>
                                     </div>
-
-                                    {testResult && testResult.key === provider && (
-                                        <div className={`${styles.message} ${testResult.success ? styles.successMessage : styles.errorMessage}`}>
-                                            {testResult.message}
-                                        </div>
-                                    )}
+                                );
+                            })}
+                            {testResult && providers.some(p => p.id === testResult.key) && (
+                                <div className={`${styles.message} ${testResult.success ? styles.successMessage : styles.errorMessage}`}>
+                                    {testResult.message}
                                 </div>
-                            </AccordionPanel>
-                        </AccordionItem>
-                    );
-                })}
+                            )}
+                        </AccordionPanel>
+                    </AccordionItem>
+                ))}
             </Accordion>
 
             <div className={styles.footer}>
