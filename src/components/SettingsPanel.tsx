@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     makeStyles,
     shorthands,
@@ -25,19 +25,17 @@ import {
     Bot24Regular,
     Globe24Regular,
     CheckmarkCircle20Filled,
-    DismissCircle20Filled,
+    Search24Regular,
 } from '@fluentui/react-icons';
 import { getSettings, saveSettings, resetSettings, PluginSettings } from '../types/settings';
 import { WORD_FONT_SIZES } from '../types/wordFonts';
 import {
     ModelConfig,
-    getUserAddedModels,
     getUserAddedModelsGroupedByProvider,
     addModelToUserList,
     removeModelFromUserList,
     getApiKey,
     saveApiKey,
-    hasApiKey,
     getProviderName,
     buildModelFromCatalog,
     addProviderRecommendedModels,
@@ -145,37 +143,152 @@ const useStyles = makeStyles({
         padding: '20px',
     },
     // 提供商浏览
-    categorySection: {
-        marginBottom: '12px',
-    },
-    categoryTitle: {
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: '6px',
-    },
-    providerCard: {
-        ...shorthands.padding('10px'),
-        ...shorthands.borderRadius('6px'),
-        border: '1px solid #e8e8e8',
-        background: '#fafafa',
-        marginBottom: '8px',
-    },
-    providerCardHeader: {
+    providerToolbar: {
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '4px',
+        ...shorthands.gap('8px'),
+        flexWrap: 'wrap',
     },
-    providerCardName: {
+    providerSearchInput: {
+        flex: '1 1 220px',
+        minWidth: '180px',
+    },
+    providerCategoryFilter: {
+        flex: '0 0 160px',
+    },
+    providerBrowser: {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(190px, 260px) minmax(0, 1fr)',
+        ...shorthands.gap('12px'),
+        minHeight: '360px',
+        maxHeight: '520px',
+        '@media (max-width: 640px)': {
+            gridTemplateColumns: '1fr',
+            maxHeight: 'none',
+        },
+    },
+    providerListPanel: {
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        ...shorthands.border('1px', 'solid', '#e8e8e8'),
+        ...shorthands.borderRadius('6px'),
+        background: '#fafafa',
+    },
+    providerListHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        ...shorthands.padding('8px', '10px'),
+        ...shorthands.borderBottom('1px', 'solid', '#e8e8e8'),
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#333',
+    },
+    providerList: {
+        overflowY: 'auto',
+        minHeight: 0,
+        ...shorthands.padding('6px'),
+        '@media (max-width: 640px)': {
+            maxHeight: '220px',
+        },
+    },
+    providerListItem: {
+        width: '100%',
+        textAlign: 'left',
+        display: 'flex',
+        flexDirection: 'column',
+        ...shorthands.gap('4px'),
+        ...shorthands.padding('8px'),
+        ...shorthands.borderRadius('6px'),
+        ...shorthands.border('1px', 'solid', 'transparent'),
+        background: 'transparent',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        ':hover': {
+            background: '#ffffff',
+        },
+    },
+    providerListItemActive: {
+        background: '#ffffff',
+        border: '1px solid #667eea',
+    },
+    providerListName: {
         fontSize: '13px',
         fontWeight: '600',
+        color: '#222',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
     },
-    providerCardUrl: {
+    providerListMeta: {
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        ...shorthands.gap('4px'),
+    },
+    providerBadge: {
+        fontSize: '10px',
+        lineHeight: '16px',
+        ...shorthands.padding('0', '6px'),
+        ...shorthands.borderRadius('8px'),
+        background: '#eef2ff',
+        color: '#667eea',
+    },
+    providerBadgeMuted: {
+        background: '#f3f4f6',
+        color: '#666',
+    },
+    providerDetail: {
+        minWidth: 0,
+        overflowY: 'auto',
+        ...shorthands.padding('12px'),
+        ...shorthands.border('1px', 'solid', '#e8e8e8'),
+        ...shorthands.borderRadius('6px'),
+        background: '#ffffff',
+    },
+    providerDetailHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        ...shorthands.gap('12px'),
+        marginBottom: '10px',
+        flexWrap: 'wrap',
+    },
+    providerDetailTitle: {
+        display: 'flex',
+        flexDirection: 'column',
+        ...shorthands.gap('4px'),
+        minWidth: 0,
+    },
+    providerDetailName: {
+        fontSize: '16px',
+        fontWeight: '600',
+        color: '#222',
+    },
+    providerDetailActions: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        ...shorthands.gap('6px'),
+        justifyContent: 'flex-end',
+    },
+    providerEndpoint: {
         fontSize: '11px',
         color: '#888',
-        marginBottom: '6px',
+        ...shorthands.padding('6px', '8px'),
+        ...shorthands.borderRadius('4px'),
+        background: '#fafafa',
+        marginBottom: '12px',
         wordBreak: 'break-all',
+    },
+    providerModelsHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '8px',
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#333',
     },
     providerCardModels: {
         display: 'flex',
@@ -193,15 +306,16 @@ const useStyles = makeStyles({
         display: 'flex',
         alignItems: 'center',
         ...shorthands.gap('4px'),
+        fontFamily: 'inherit',
+        lineHeight: '18px',
+        ':disabled': {
+            cursor: 'default',
+        },
     },
     modelChipAdded: {
         background: '#eef2ff',
         border: '1px solid #667eea',
         color: '#667eea',
-    },
-    providerCardActions: {
-        display: 'flex',
-        ...shorthands.gap('6px'),
     },
     // 设置
     formGroup: {
@@ -242,6 +356,20 @@ interface SettingsPanelProps {
     onClose?: () => void;
 }
 
+type ProviderCategoryFilter = ProviderCategory | 'all';
+
+const COMMON_PROVIDER_IDS = [
+    'deepseek',
+    'aliyun',
+    'zhipu',
+    'moonshot',
+    'siliconflow',
+    'openrouter',
+    'ollama',
+    'lmstudio',
+    'vllm',
+];
+
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     const styles = useStyles();
     const [activeTab, setActiveTab] = useState<string>('models');
@@ -252,6 +380,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     const [keyInput, setKeyInput] = useState('');
     const [quickAddModelIds, setQuickAddModelIds] = useState<Record<string, string>>({});
     const [localModelIds, setLocalModelIds] = useState<Record<string, string>>({});
+    const [selectedProviderId, setSelectedProviderId] = useState<string>(PROVIDER_CATALOG[0]?.id || '');
+    const [providerSearch, setProviderSearch] = useState('');
+    const [providerCategoryFilter, setProviderCategoryFilter] = useState<ProviderCategoryFilter>('all');
 
     // Settings
     const [settings, setSettings] = useState<PluginSettings | null>(null);
@@ -367,6 +498,80 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
     const totalModels = Object.values(groupedModels).flat().length;
     const providerCategories = getProvidersByCategory();
+    const providerCatalogOrder = useMemo(
+        () => new Map(PROVIDER_CATALOG.map((provider, index) => [provider.id, index])),
+        []
+    );
+    const commonProviderOrder = useMemo(
+        () => new Map(COMMON_PROVIDER_IDS.map((providerId, index) => [providerId, index])),
+        []
+    );
+    const providerCategoryOptions = useMemo(
+        () => (Object.keys(providerCategories) as ProviderCategory[])
+            .filter(category => providerCategories[category].length > 0)
+            .sort((a, b) => (CATEGORY_META[a]?.order || 99) - (CATEGORY_META[b]?.order || 99)),
+        [providerCategories]
+    );
+    const filteredProviders = useMemo(() => {
+        const query = providerSearch.trim().toLowerCase();
+
+        const matchesSearch = (provider: ProviderPreset) => {
+            if (!query) return true;
+            const haystack = [
+                provider.name,
+                provider.id,
+                provider.baseUrl,
+                provider.chatPath,
+                ...provider.recommendedModels.flatMap(model => [model.id, model.name]),
+            ].join(' ').toLowerCase();
+            return haystack.includes(query);
+        };
+
+        const hasUserState = (provider: ProviderPreset) => {
+            const modelCount = groupedModels[provider.id]?.length || 0;
+            const hasConfiguredKey = !provider.isLocal && !!apiKeys[provider.id];
+            return modelCount > 0 || hasConfiguredKey;
+        };
+
+        return PROVIDER_CATALOG
+            .filter(provider =>
+                (providerCategoryFilter === 'all' || provider.category === providerCategoryFilter)
+                && matchesSearch(provider)
+            )
+            .sort((a, b) => {
+                const aUserState = hasUserState(a) ? 0 : 1;
+                const bUserState = hasUserState(b) ? 0 : 1;
+                if (aUserState !== bUserState) return aUserState - bUserState;
+
+                const aCommon = commonProviderOrder.get(a.id) ?? 999;
+                const bCommon = commonProviderOrder.get(b.id) ?? 999;
+                if (aCommon !== bCommon) return aCommon - bCommon;
+
+                const aCategory = CATEGORY_META[a.category]?.order || 99;
+                const bCategory = CATEGORY_META[b.category]?.order || 99;
+                if (aCategory !== bCategory) return aCategory - bCategory;
+
+                return (providerCatalogOrder.get(a.id) ?? 999) - (providerCatalogOrder.get(b.id) ?? 999);
+            });
+    }, [
+        apiKeys,
+        commonProviderOrder,
+        groupedModels,
+        providerCatalogOrder,
+        providerCategoryFilter,
+        providerSearch,
+    ]);
+    const selectedProvider = filteredProviders.find(provider => provider.id === selectedProviderId) || filteredProviders[0] || null;
+    const selectedCategoryLabel = providerCategoryFilter === 'all'
+        ? '全部分类'
+        : CATEGORY_META[providerCategoryFilter]?.name || '全部分类';
+
+    useEffect(() => {
+        if (filteredProviders.length === 0) return;
+        if (!filteredProviders.some(provider => provider.id === selectedProviderId)) {
+            setSelectedProviderId(filteredProviders[0].id);
+        }
+    }, [filteredProviders, selectedProviderId]);
 
     const renderModelsTab = () => (
         <div className={styles.section}>
@@ -449,7 +654,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                                             onClick={() => handleQuickAdd(providerId)}
                                             disabled={
                                                 preset.isLocal
-                                                    ? !localModelIds[providerId]?.trim()
+                                                    ? !quickAddModelIds[providerId]?.trim()
                                                     : !isProviderKeyConfigured(providerId) || !quickAddModelIds[providerId]?.trim()
                                             }
                                         >
@@ -471,130 +676,194 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         </div>
     );
 
-    const renderProvidersTab = () => (
-        <div className={styles.section}>
-            <div className={styles.sectionTitle}>浏览提供商</div>
+    const renderProvidersTab = () => {
+        const selectedUserModels = selectedProvider ? groupedModels[selectedProvider.id] || [] : [];
+        const selectedAddedModelIds = new Set(selectedUserModels.map(model => model.id));
+        const selectedHasKey = selectedProvider
+            ? selectedProvider.isLocal || isProviderKeyConfigured(selectedProvider.id)
+            : false;
 
-            {(Object.entries(providerCategories) as [ProviderCategory, ProviderPreset[]][])
-                .sort(([a], [b]) => (CATEGORY_META[a]?.order || 99) - (CATEGORY_META[b]?.order || 99))
-                .map(([category, providers]) => {
-                    if (providers.length === 0) return null;
-                    const meta = CATEGORY_META[category];
+        return (
+            <div className={styles.section}>
+                <div className={styles.sectionTitle}>浏览提供商</div>
 
-                    return (
-                        <div key={category} className={styles.categorySection}>
-                            <div className={styles.categoryTitle}>{meta.name}</div>
-                            {providers.map(preset => {
-                                const hasKey = preset.isLocal || isProviderKeyConfigured(preset.id);
-                                const userModels = groupedModels[preset.id] || [];
-                                const addedModelIds = new Set(userModels.map(m => m.id));
+                <div className={styles.providerToolbar}>
+                    <Input
+                        className={styles.providerSearchInput}
+                        size="small"
+                        contentBefore={<Search24Regular style={{ width: 14, height: 14 }} />}
+                        placeholder="搜索提供商、模型或 API 地址"
+                        value={providerSearch}
+                        onChange={(_, data) => setProviderSearch(data.value)}
+                    />
+                    <Dropdown
+                        className={styles.providerCategoryFilter}
+                        value={selectedCategoryLabel}
+                        selectedOptions={[providerCategoryFilter]}
+                        onOptionSelect={(_, data) =>
+                            setProviderCategoryFilter((data.optionValue || 'all') as ProviderCategoryFilter)
+                        }
+                    >
+                        <Option value="all" text="全部分类">全部分类</Option>
+                        {providerCategoryOptions.map(category => (
+                            <Option key={category} value={category} text={CATEGORY_META[category].name}>
+                                {CATEGORY_META[category].name}
+                            </Option>
+                        ))}
+                    </Dropdown>
+                </div>
 
-                                return (
-                                    <div key={preset.id} className={styles.providerCard}>
-                                        <div className={styles.providerCardHeader}>
-                                            <span className={styles.providerCardName}>{preset.name}</span>
-                                            {!preset.isLocal && (
-                                                <span className={`${styles.keyStatus} ${hasKey ? styles.keyOk : styles.keyMissing}`}>
-                                                    {hasKey ? '已配置' : '未配置'}
+                <div className={styles.providerBrowser}>
+                    <div className={styles.providerListPanel}>
+                        <div className={styles.providerListHeader}>
+                            <span>提供商</span>
+                            <span>{filteredProviders.length}/{PROVIDER_CATALOG.length}</span>
+                        </div>
+                        <div className={styles.providerList}>
+                            {filteredProviders.length === 0 ? (
+                                <div className={styles.emptyText}>没有匹配的提供商</div>
+                            ) : (
+                                filteredProviders.map(preset => {
+                                    const modelCount = groupedModels[preset.id]?.length || 0;
+                                    const hasKey = preset.isLocal || isProviderKeyConfigured(preset.id);
+                                    const isActive = selectedProvider?.id === preset.id;
+
+                                    return (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            className={`${styles.providerListItem} ${isActive ? styles.providerListItemActive : ''}`}
+                                            onClick={() => setSelectedProviderId(preset.id)}
+                                        >
+                                            <span className={styles.providerListName}>{preset.name}</span>
+                                            <span className={styles.providerListMeta}>
+                                                <span className={styles.providerBadge}>
+                                                    {CATEGORY_META[preset.category].name}
                                                 </span>
-                                            )}
-                                        </div>
-                                        <div className={styles.providerCardUrl}>
-                                            {preset.baseUrl}{preset.chatPath}
-                                        </div>
+                                                <span className={`${styles.providerBadge} ${preset.isLocal || !hasKey ? styles.providerBadgeMuted : ''}`}>
+                                                    {preset.isLocal ? '本地' : hasKey ? '已配置' : '未配置'}
+                                                </span>
+                                                {modelCount > 0 && (
+                                                    <span className={styles.providerBadge}>{modelCount} 模型</span>
+                                                )}
+                                            </span>
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
 
-                                        {/* 推荐模型 */}
-                                        {preset.recommendedModels.length > 0 && (
-                                            <div className={styles.providerCardModels}>
-                                                {preset.recommendedModels.map(rm => {
-                                                    const isAdded = addedModelIds.has(rm.id);
-                                                    return (
-                                                        <span
-                                                            key={rm.id}
-                                                            className={`${styles.modelChip} ${isAdded ? styles.modelChipAdded : ''}`}
-                                                            onClick={() => {
-                                                                if (!isAdded) {
-                                                                    handleAddRecommendedModel(preset.id, rm.id, rm.name);
-                                                                }
-                                                            }}
-                                                            title={isAdded ? '已添加' : '点击添加'}
-                                                        >
-                                                            {isAdded && <CheckmarkCircle20Filled style={{ width: 12, height: 12 }} />}
-                                                            {rm.name}
-                                                        </span>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {/* 本地供应商模型输入 */}
-                                        {preset.isLocal && (
-                                            <div className={styles.localInput}>
-                                                <Input
-                                                    className={styles.quickAddInput}
-                                                    size="small"
-                                                    placeholder="输入模型名称（如 llama3）"
-                                                    value={localModelIds[preset.id] || ''}
-                                                    onChange={(_, data) =>
-                                                        setLocalModelIds(prev => ({ ...prev, [preset.id]: data.value }))
-                                                    }
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleAddLocalModel(preset.id);
-                                                    }}
-                                                />
+                    <div className={styles.providerDetail}>
+                        {!selectedProvider ? (
+                            <div className={styles.emptyText}>请选择一个提供商</div>
+                        ) : (
+                            <>
+                                <div className={styles.providerDetailHeader}>
+                                    <div className={styles.providerDetailTitle}>
+                                        <span className={styles.providerDetailName}>{selectedProvider.name}</span>
+                                        <span className={`${styles.keyStatus} ${selectedHasKey ? styles.keyOk : styles.keyMissing}`}>
+                                            {selectedProvider.isLocal ? '本地/自部署' : selectedHasKey ? 'API Key 已配置' : 'API Key 未配置'}
+                                            {selectedUserModels.length > 0 ? ` · 已添加 ${selectedUserModels.length} 个模型` : ''}
+                                        </span>
+                                    </div>
+                                    <div className={styles.providerDetailActions}>
+                                        {!selectedProvider.isLocal && (
+                                            <>
                                                 <Button
-                                                    icon={<Add24Regular />}
+                                                    icon={<Key24Regular />}
                                                     size="small"
-                                                    appearance="primary"
-                                                    onClick={() => handleAddLocalModel(preset.id)}
-                                                    disabled={!localModelIds[preset.id]?.trim()}
+                                                    appearance={selectedHasKey ? 'subtle' : 'primary'}
+                                                    onClick={() => handleOpenKeyDialog(selectedProvider.id)}
                                                 >
-                                                    添加
+                                                    {selectedHasKey ? '修改 Key' : '配置 Key'}
                                                 </Button>
-                                            </div>
-                                        )}
-
-                                        <div className={styles.providerCardActions}>
-                                            {!preset.isLocal && (
-                                                <>
+                                                {selectedProvider.apiKeyUrl && (
                                                     <Button
-                                                        icon={<Key24Regular />}
                                                         size="small"
                                                         appearance="subtle"
-                                                        onClick={() => handleOpenKeyDialog(preset.id)}
+                                                        onClick={() => window.open(selectedProvider.apiKeyUrl, '_blank')}
                                                     >
-                                                        {hasKey ? '修改 Key' : '配置 Key'}
+                                                        获取 Key
                                                     </Button>
-                                                    {preset.apiKeyUrl && (
-                                                        <Button
-                                                            size="small"
-                                                            appearance="subtle"
-                                                            onClick={() => window.open(preset.apiKeyUrl, '_blank')}
-                                                        >
-                                                            获取 Key
-                                                        </Button>
-                                                    )}
-                                                </>
-                                            )}
-                                            {preset.recommendedModels.length > 0 && (
-                                                <Button
-                                                    icon={<Add24Regular />}
-                                                    size="small"
-                                                    appearance="subtle"
-                                                    onClick={() => handleAddAllRecommended(preset.id)}
-                                                >
-                                                    添加全部推荐
-                                                </Button>
-                                            )}
-                                        </div>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
-                                );
-                            })}
-                        </div>
-                    );
-                })}
-        </div>
-    );
+                                </div>
+
+                                <div className={styles.providerEndpoint}>
+                                    {selectedProvider.baseUrl}{selectedProvider.chatPath}
+                                </div>
+
+                                {selectedProvider.isLocal && (
+                                    <div className={styles.localInput}>
+                                        <Input
+                                            className={styles.quickAddInput}
+                                            size="small"
+                                            placeholder="输入模型名称（如 llama3）"
+                                            value={localModelIds[selectedProvider.id] || ''}
+                                            onChange={(_, data) =>
+                                                setLocalModelIds(prev => ({ ...prev, [selectedProvider.id]: data.value }))
+                                            }
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleAddLocalModel(selectedProvider.id);
+                                            }}
+                                        />
+                                        <Button
+                                            icon={<Add24Regular />}
+                                            size="small"
+                                            appearance="primary"
+                                            onClick={() => handleAddLocalModel(selectedProvider.id)}
+                                            disabled={!localModelIds[selectedProvider.id]?.trim()}
+                                        >
+                                            添加
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {selectedProvider.recommendedModels.length > 0 ? (
+                                    <>
+                                        <div className={styles.providerModelsHeader}>
+                                            <span>推荐模型</span>
+                                            <Button
+                                                icon={<Add24Regular />}
+                                                size="small"
+                                                appearance="subtle"
+                                                onClick={() => handleAddAllRecommended(selectedProvider.id)}
+                                            >
+                                                添加全部推荐
+                                            </Button>
+                                        </div>
+                                        <div className={styles.providerCardModels}>
+                                            {selectedProvider.recommendedModels.map(model => {
+                                                const isAdded = selectedAddedModelIds.has(model.id);
+                                                return (
+                                                    <button
+                                                        key={model.id}
+                                                        type="button"
+                                                        className={`${styles.modelChip} ${isAdded ? styles.modelChipAdded : ''}`}
+                                                        onClick={() => handleAddRecommendedModel(selectedProvider.id, model.id, model.name)}
+                                                        disabled={isAdded}
+                                                        title={isAdded ? '已添加' : '点击添加'}
+                                                    >
+                                                        {isAdded && <CheckmarkCircle20Filled style={{ width: 12, height: 12 }} />}
+                                                        {model.name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                ) : !selectedProvider.isLocal ? (
+                                    <div className={styles.emptyText}>该提供商暂无推荐模型，可在「我的模型」中手动添加模型 ID</div>
+                                ) : null}
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const renderSettingsTab = () => (
         <div className={styles.section}>
