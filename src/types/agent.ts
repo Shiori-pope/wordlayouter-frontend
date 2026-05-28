@@ -49,6 +49,7 @@ export interface AgentToolDefinition {
 export type AgentToolName =
     | 'get_document_outline'
     | 'get_selection'
+    | 'get_document_inventory'
     | 'read_range'
     | 'read_paragraphs'
     | 'grep_document'
@@ -63,8 +64,10 @@ export type AgentToolName =
     | 'define_or_update_style'
     | 'manage_headings'
     | 'insert_table_or_update_table'
+    | 'update_table'
     | 'insert_toc'
     | 'set_page_setup'
+    | 'set_section_break'
     | 'set_header_footer'
     | 'insert_footnote_or_endnote'
     | 'insert_cross_reference_marker'
@@ -73,6 +76,7 @@ export type AgentToolName =
     | 'get_comments'
     | 'preview_changes'
     | 'validate_document'
+    | 'refresh_document_index'
     | 'rollback_turn'
     | 'commit_turn';
 
@@ -94,6 +98,14 @@ export interface ToolResult<TData = unknown> {
         recoverable: boolean;
     };
     summary: string;
+    operationId?: string;
+    affectedRangeRefs?: string[];
+    beforeDigest?: string;
+    afterDigest?: string;
+    verification?: {
+        ok: boolean;
+        details: string[];
+    };
 }
 
 export interface DocIR {
@@ -110,7 +122,7 @@ export interface DocIRStory {
 }
 
 export interface DocIRBlock {
-    type: 'paragraph' | 'heading' | 'list' | 'table' | 'quote' | 'code' | 'image' | 'field' | 'note';
+    type: 'paragraph' | 'heading' | 'list' | 'table' | 'quote' | 'code' | 'image' | 'field' | 'note' | 'headerFooter' | 'section' | 'contentControl';
     rangeRef: string;
     markdown: string;
     text?: string;

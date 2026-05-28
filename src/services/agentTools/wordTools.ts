@@ -12,6 +12,17 @@ import {
 import { docIRToHtml, paragraphsToDocIR } from '../docIrService';
 import { deleteSnapshot, restoreSnapshot } from '../documentSnapshotService';
 import { applyInlineStyles, insertHtmlAsDocx } from '../../utils/htmlParser';
+import { listToolOperations, recordToolOperation } from './toolOperationService';
+import { validateToolArguments } from './toolValidationService';
+import {
+    ensureContentType,
+    ensureRelationship,
+    getCurrentDocxPackage,
+    parseXmlPart,
+    replaceCurrentDocxPackage,
+    serializeXml,
+    writePart,
+} from './ooxmlPackageService';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -217,6 +228,88 @@ function applyNamedStyleToParagraph(paragraph: Word.Paragraph, styleName: string
     } else {
         p.style = styleName;
     }
+}
+
+function styleIdFromName(styleName: string): string {
+    const builtIn = normalizeBuiltInStyleName(styleName);
+    if (builtIn) return builtIn;
+    return styleName.replace(/[^\p{L}\p{N}_-]/gu, '') || `Style${Date.now()}`;
+}
+
+function styleTypeToWordType(type: string): string {
+    if (type === 'character') return 'character';
+    if (type === 'table') return 'table';
+    if (type === 'list') return 'numbering';
+    return 'paragraph';
+}
+
+function appendTextElement(doc: Document, parent: Element, name: string, value: string) {
+    const element = doc.createElement(name);
+    element.setAttribute('w:val', value);
+    parent.appendChild(element);
+}
+
+function appendRunProperties(doc: Document, parent: Element, style: AnyRecord) {
+    const rPr = doc.createElement('w:rPr');
+    let hasRun = false;
+    if (typeof style.fontFamily === 'string' || typeof style.eastAsiaFont === 'string') {
+        const fonts = doc.createElement('w:rFonts');
+        if (typeof style.fontFamily === 'string') {
+            fonts.setAttribute('w:ascii', style.fontFamily);
+            fonts.setAttribute('w:hAnsi', style.fontFamily);
+        }
+        if (typeof style.eastAsiaFont === 'string') {
+            fonts.setAttribute('w:eastAsia', style.eastAsiaFont);
+        }
+        rPr.appendChild(fonts);
+        hasRun = true;
+    }
+    if (typeof style.fontSizePt === 'number') {
+        const size = doc.createElement('w:sz');
+        size.setAttribute('w:val', String(Math.round(style.fontSizePt * 2)));
+        rPr.appendChild(size);
+        hasRun = true;
+    }
+    if (style.bold === true) {
+        rPr.appendChild(doc.createElement('w:b'));
+        hasRun = true;
+    }
+    if (style.italic === true) {
+        rPr.appendChild(doc.createElement('w:i'));
+        hasRun = true;
+    }
+    if (typeof style.color === 'string') {
+        const color = doc.createElement('w:color');
+        color.setAttribute('w:val', style.color.replace(/^#/, ''));
+        rPr.appendChild(color);
+        hasRun = true;
+    }
+    if (hasRun) parent.appendChild(rPr);
+}
+
+function appendParagraphProperties(doc: Document, parent: Element, style: AnyRecord) {
+    const pPr = doc.createElement('w:pPr');
+    let hasParagraph = false;
+    if (typeof style.alignment === 'string') {
+        const jc = doc.createElement('w:jc');
+        jc.setAttribute('w:val', style.alignment);
+        pPr.appendChild(jc);
+        hasParagraph = true;
+    }
+    if (typeof style.outlineLevel === 'number') {
+        const outline = doc.createElement('w:outlineLvl');
+        outline.setAttribute('w:val', String(clamp(style.outlineLevel - 1, 0, 8)));
+        pPr.appendChild(outline);
+        hasParagraph = true;
+    }
+    if (typeof style.spaceBeforePt === 'number' || typeof style.spaceAfterPt === 'number') {
+        const spacing = doc.createElement('w:spacing');
+        if (typeof style.spaceBeforePt === 'number') spacing.setAttribute('w:before', String(Math.round(style.spaceBeforePt * 20)));
+        if (typeof style.spaceAfterPt === 'number') spacing.setAttribute('w:after', String(Math.round(style.spaceAfterPt * 20)));
+        pPr.appendChild(spacing);
+        hasParagraph = true;
+    }
+    if (hasParagraph) parent.appendChild(pPr);
 }
 
 function trimAround(text: string, start: number, end: number, contextChars: number) {
@@ -427,6 +520,7 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
         },
     },
     { name: 'get_selection', risk: 'read', description: 'Read current Word selection.', parameters: { type: 'object', additionalProperties: false, properties: { format: { type: 'string', enum: ['text', 'docir', 'html', 'ooxml'] } } } },
+    { name: 'get_document_inventory', risk: 'read', description: 'Read document object inventory: styles, sections, tables, fields, comments, notes, and content controls.', parameters: { type: 'object', additionalProperties: false, properties: { includeStyles: { type: 'boolean' }, includeFields: { type: 'boolean' }, includeControls: { type: 'boolean' }, maxItems: { type: 'number' } } } },
     { name: 'read_range', risk: 'read', description: 'Read a returned rangeRef. Supports body:p10, body:p10-20, and body:p10:r0-12. Prefer ranges over single-paragraph loops.', parameters: { type: 'object', additionalProperties: false, required: ['rangeRef'], properties: { rangeRef: { type: 'string' }, format: { type: 'string', enum: ['text', 'docir', 'html', 'ooxml'] }, maxChars: { type: 'number' } } } },
     {
         name: 'read_paragraphs',
@@ -489,11 +583,13 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
     { name: 'set_paragraph_format', risk: 'write', description: 'Apply paragraph formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'set_text_format', risk: 'write', description: 'Apply text formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'apply_named_style', risk: 'write', description: 'Apply a Word named style to a target/rangeRef. For headings prefer built-in names Heading1..Heading9, not localized UI text.', parameters: { type: 'object', additionalProperties: false, required: ['styleName'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, styleName: { type: 'string' } } } },
-    { name: 'define_or_update_style', risk: 'write', description: 'Reserved style definition tool; current Word API surface cannot reliably create named styles cross-platform.', parameters: { type: 'object', additionalProperties: true, properties: {} } },
+    { name: 'define_or_update_style', risk: 'write', description: 'Define or update a Word style. Uses OOXML package editing when Office.js style creation is unavailable.', parameters: { type: 'object', additionalProperties: false, required: ['styleName', 'type', 'style'], properties: { styleName: { type: 'string' }, type: { type: 'string', enum: ['paragraph', 'character', 'table', 'list'] }, basedOn: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'manage_headings', risk: 'write', description: 'Bulk apply heading outline levels. Use this instead of many apply_named_style calls when changing a document outline.', parameters: { type: 'object', additionalProperties: false, properties: { updates: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['rangeRef', 'level'], properties: { rangeRef: { type: 'string' }, level: { type: 'number' } } } }, rangeRefs: { type: 'array', items: { type: 'string' } }, level: { type: 'number' } } } },
     { name: 'insert_table_or_update_table', risk: 'write', description: 'Insert a simple table.', parameters: {} },
+    { name: 'update_table', risk: 'write', description: 'Update an existing table by rangeRef or table index.', parameters: { type: 'object', additionalProperties: false, properties: { tableRef: { type: 'string' }, tableIndex: { type: 'number' }, rows: { type: 'array' }, style: { type: 'object' } } } },
     { name: 'insert_toc', risk: 'write', description: 'Insert a table of contents field.', parameters: {} },
     { name: 'set_page_setup', risk: 'write', description: 'Apply section page setup.', parameters: {} },
+    { name: 'set_section_break', risk: 'write', description: 'Insert a section break at target.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, breakType: { type: 'string', enum: ['nextPage', 'continuous', 'evenPage', 'oddPage'] } } } },
     { name: 'set_header_footer', risk: 'write', description: 'Set section header or footer content.', parameters: {} },
     { name: 'insert_footnote_or_endnote', risk: 'write', description: 'Insert a footnote or endnote marker fallback.', parameters: {} },
     { name: 'insert_cross_reference_marker', risk: 'write', description: 'Insert a local cross-reference marker.', parameters: {} },
@@ -502,6 +598,7 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
     { name: 'get_comments', risk: 'read', description: 'Read Word comments when supported.', parameters: {} },
     { name: 'preview_changes', risk: 'read', description: 'Summarize planned changes.', parameters: {} },
     { name: 'validate_document', risk: 'read', description: 'Run lightweight document validation.', parameters: {} },
+    { name: 'refresh_document_index', risk: 'read', description: 'Refresh and return the current document index used by the agent context.', parameters: { type: 'object', additionalProperties: false, properties: {} } },
     { name: 'rollback_turn', risk: 'rollback', description: 'Restore a turn snapshot.', parameters: {} },
     { name: 'commit_turn', risk: 'rollback', description: 'Mark a snapshot as committed.', parameters: {} },
 ];
@@ -520,68 +617,118 @@ export function validateToolCall(raw: unknown): AgentToolCall | null {
 
 export async function executeWordTool(call: AgentToolCall): Promise<ToolResult> {
     try {
+        const definition = AGENT_TOOL_DEFINITIONS.find(def => def.name === call.name);
+        if (definition) {
+            const validationError = validateToolArguments(definition, call);
+            if (validationError) {
+                return recordToolOperation(call, fail(call, validationError.code, validationError.message));
+            }
+        }
+
+        let result: ToolResult;
         switch (call.name) {
             case 'get_document_outline':
-                return await getDocumentOutline(call);
+                result = await getDocumentOutline(call);
+                break;
             case 'get_selection':
-                return await getSelectionTool(call);
+                result = await getSelectionTool(call);
+                break;
+            case 'get_document_inventory':
+                result = await getDocumentInventory(call);
+                break;
             case 'read_range':
-                return await readRange(call);
+                result = await readRange(call);
+                break;
             case 'read_paragraphs':
-                return await readParagraphs(call);
+                result = await readParagraphs(call);
+                break;
             case 'grep_document':
-                return await grepDocument(call);
+                result = await grepDocument(call);
+                break;
             case 'find_insert_position':
-                return await findInsertPosition(call);
+                result = await findInsertPosition(call);
+                break;
             case 'insert_section':
-                return await insertSection(call);
+                result = await insertSection(call);
+                break;
             case 'insert_content':
-                return await insertContent(call);
+                result = await insertContent(call);
+                break;
             case 'replace_range':
-                return await replaceRange(call);
+                result = await replaceRange(call);
+                break;
             case 'delete_range':
-                return await deleteRange(call);
+                result = await deleteRange(call);
+                break;
             case 'set_paragraph_format':
-                return await setParagraphFormat(call);
+                result = await setParagraphFormat(call);
+                break;
             case 'set_text_format':
-                return await setTextFormat(call);
+                result = await setTextFormat(call);
+                break;
             case 'apply_named_style':
-                return await applyNamedStyle(call);
+                result = await applyNamedStyle(call);
+                break;
             case 'define_or_update_style':
-                return fail(call, 'TOOL_NOT_IMPLEMENTED', 'define_or_update_style 暂未实装：当前 Office.js 不能跨平台稳定创建/修改命名样式');
+                result = await defineOrUpdateStyle(call);
+                break;
             case 'manage_headings':
-                return await manageHeadings(call);
+                result = await manageHeadings(call);
+                break;
             case 'insert_table_or_update_table':
-                return await insertTable(call);
+                result = await insertTable(call);
+                break;
+            case 'update_table':
+                result = await updateTable(call);
+                break;
             case 'insert_toc':
-                return await insertToc(call);
+                result = await insertToc(call);
+                break;
             case 'set_page_setup':
-                return await setPageSetup(call);
+                result = await setPageSetup(call);
+                break;
+            case 'set_section_break':
+                result = await setSectionBreak(call);
+                break;
             case 'set_header_footer':
-                return await setHeaderFooter(call);
+                result = await setHeaderFooter(call);
+                break;
             case 'insert_footnote_or_endnote':
-                return await insertFootnoteFallback(call);
+                result = await insertFootnoteFallback(call);
+                break;
             case 'insert_cross_reference_marker':
-                return await insertCrossReferenceMarker(call);
+                result = await insertCrossReferenceMarker(call);
+                break;
             case 'manage_citations':
-                return await manageCitations(call);
+                result = await manageCitations(call);
+                break;
             case 'add_comment':
-                return await addComment(call);
+                result = await addComment(call);
+                break;
             case 'get_comments':
-                return await getComments(call);
+                result = await getComments(call);
+                break;
             case 'validate_document':
-                return await validateDocument(call);
+                result = await validateDocument(call);
+                break;
+            case 'refresh_document_index':
+                result = await refreshDocumentIndex(call);
+                break;
             case 'rollback_turn':
-                return await rollbackTurn(call);
+                result = await rollbackTurn(call);
+                break;
             case 'commit_turn':
-                return await commitTurn(call);
+                result = await commitTurn(call);
+                break;
             case 'preview_changes':
-                return ok(call, { operationIds: asRecord(call.arguments).operationIds || [] }, '已生成变更预览');
+                result = await previewChanges(call);
+                break;
             default:
-                return fail(call, 'TOOL_NOT_IMPLEMENTED', `${call.name} 暂未实现`);
+                result = fail(call, 'UNSUPPORTED_CAPABILITY', `${call.name} 暂未实现`);
         }
+        return recordToolOperation(call, result);
     } catch (error) {
-        return fail(call, 'WORD_TOOL_ERROR', error instanceof Error ? error.message : String(error));
+        return recordToolOperation(call, fail(call, 'WORD_TOOL_ERROR', error instanceof Error ? error.message : String(error)));
     }
 }
 
@@ -649,6 +796,53 @@ async function getSelectionTool(call: AgentToolCall): Promise<ToolResult> {
             return ok(call, { format, content: docir }, '已读取当前选区 DocIR');
         }
         return ok(call, { format, content: selection.text }, '已读取当前选区文本');
+    });
+}
+
+async function getDocumentInventory(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const maxItems = clamp(asNumber(args.maxItems, 80), 1, 300);
+    return Word.run(async (context) => {
+        const sections = context.document.sections;
+        sections.load('items');
+        const tables = context.document.body.tables;
+        tables.load('items');
+        const paragraphs = context.document.body.paragraphs;
+        paragraphs.load('items/text,items/style');
+        await context.sync();
+
+        const headingOutline = buildHeadingSnapshot(paragraphs.items, 9).slice(0, maxItems);
+        const tableItems = tables.items.slice(0, maxItems).map((_table, index) => ({
+            rangeRef: `table:t${index}`,
+            tableIndex: index,
+        }));
+
+        const contentControls: unknown[] = [];
+        const bodyWithControls = context.document.body as unknown as { contentControls?: { load: (props?: string) => void; items?: unknown[] } };
+        if (bodyWithControls.contentControls) {
+            bodyWithControls.contentControls.load('items/tag,items/title');
+            await context.sync();
+            contentControls.push(...(bodyWithControls.contentControls.items || []).slice(0, maxItems));
+        }
+
+        const commentsBody = context.document.body as unknown as { getComments?: () => { load: (props?: string) => void; items?: unknown[] } };
+        let commentsCount: number | undefined;
+        if (commentsBody.getComments) {
+            const comments = commentsBody.getComments();
+            comments.load();
+            await context.sync();
+            commentsCount = (comments.items || []).length;
+        }
+
+        return ok(call, {
+            sections: sections.items.map((_section, index) => ({ sectionRef: `section:s${index}`, sectionIndex: index })),
+            tables: tableItems,
+            headings: headingOutline,
+            contentControls,
+            commentsCount,
+            notes: { footnotes: 'available-via-ooxml', endnotes: 'available-via-ooxml' },
+            fields: args.includeFields === false ? undefined : { toc: 'available-via-ooxml-scan' },
+        }, `读取文档对象清单：${sections.items.length} 个节，${tables.items.length} 个表格，${headingOutline.length} 个标题`);
     });
 }
 
@@ -1013,6 +1207,39 @@ async function applyNamedStyle(call: AgentToolCall): Promise<ToolResult> {
     return ok(call, { target, styleName }, `已应用样式 ${styleName}`);
 }
 
+async function defineOrUpdateStyle(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const styleName = asString(args.styleName).trim();
+    const type = asString(args.type, 'paragraph');
+    const basedOn = asString(args.basedOn, 'Normal');
+    const style = asRecord(args.style);
+    if (!styleName) return fail(call, 'INVALID_ARGS', 'define_or_update_style 缺少 styleName');
+
+    const pkg = await getCurrentDocxPackage();
+    const stylesDoc = await parseXmlPart(pkg, 'word/styles.xml');
+    if (!stylesDoc) return fail(call, 'UNSUPPORTED_CAPABILITY', '当前文档缺少 word/styles.xml，无法修改样式');
+
+    const styleId = styleIdFromName(styleName);
+    const wordType = styleTypeToWordType(type);
+    const stylesRoot = stylesDoc.documentElement;
+    const existing = Array.from(stylesDoc.getElementsByTagName('w:style'))
+        .find(node => node.getAttribute('w:styleId') === styleId);
+    const styleElement = existing || stylesDoc.createElement('w:style');
+    while (styleElement.firstChild) styleElement.removeChild(styleElement.firstChild);
+    styleElement.setAttribute('w:type', wordType);
+    styleElement.setAttribute('w:styleId', styleId);
+
+    appendTextElement(stylesDoc, styleElement, 'w:name', styleName);
+    if (basedOn) appendTextElement(stylesDoc, styleElement, 'w:basedOn', styleIdFromName(basedOn));
+    appendRunProperties(stylesDoc, styleElement, style);
+    if (wordType === 'paragraph') appendParagraphProperties(stylesDoc, styleElement, style);
+    if (!existing) stylesRoot.appendChild(styleElement);
+
+    writePart(pkg, 'word/styles.xml', serializeXml(stylesDoc));
+    await replaceCurrentDocxPackage(pkg);
+    return ok(call, { styleName, styleId, type: wordType }, `已定义/更新样式 ${styleName}`);
+}
+
 async function manageHeadings(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const rawUpdates = Array.isArray(args.updates) ? args.updates : [];
@@ -1054,6 +1281,31 @@ async function insertTable(call: AgentToolCall): Promise<ToolResult> {
     return ok(call, { rows: rows.length }, '已插入表格');
 }
 
+async function updateTable(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const rows = Array.isArray(args.rows) ? args.rows as string[][] : [];
+    const tableRef = asString(args.tableRef);
+    const tableIndexFromRef = tableRef.match(/^table:t(\d+)$/)?.[1];
+    const tableIndex = tableIndexFromRef ? Number(tableIndexFromRef) : clamp(asNumber(args.tableIndex, 0), 0, 9999);
+
+    if (!rows.length) return fail(call, 'INVALID_ARGS', 'update_table 缺少 rows');
+
+    await Word.run(async (context) => {
+        const tables = context.document.body.tables;
+        tables.load('items');
+        await context.sync();
+        const table = tables.items[tableIndex];
+        if (!table) throw new Error(`找不到表格 table:t${tableIndex}`);
+        table.delete();
+        await context.sync();
+        const html = `<table>${rows.map((row, rowIndex) => `<tr>${row.map(cell => rowIndex === 0 ? `<th>${escapeHtml(String(cell))}</th>` : `<td>${escapeHtml(String(cell))}</td>`).join('')}</tr>`).join('')}</table>`;
+        context.document.body.insertHtml(applyInlineStyles(html, activeAgentCssStyles), Word.InsertLocation.end);
+        await context.sync();
+    });
+
+    return ok(call, { tableRef: `table:t${tableIndex}`, rows: rows.length }, `已更新表格 table:t${tableIndex}`);
+}
+
 async function insertToc(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const levels = clamp(asNumber(args.levels, 3), 1, 9);
@@ -1084,6 +1336,25 @@ async function setPageSetup(call: AgentToolCall): Promise<ToolResult> {
     return ok(call, args, '已设置页面参数');
 }
 
+async function setSectionBreak(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const target = asString(args.rangeRef, asString(args.target, 'selection'));
+    const breakTypeArg = asString(args.breakType, 'nextPage');
+    const breakType = breakTypeArg === 'continuous'
+        ? Word.BreakType.sectionContinuous
+        : breakTypeArg === 'evenPage'
+            ? Word.BreakType.sectionEven
+            : breakTypeArg === 'oddPage'
+                ? Word.BreakType.sectionOdd
+                : Word.BreakType.sectionNext;
+    await Word.run(async (context) => {
+        const range = await getTargetRange(context, target);
+        range.insertBreak(breakType, Word.InsertLocation.after);
+        await context.sync();
+    });
+    return ok(call, { target, breakType: breakTypeArg }, `已插入分节符：${breakTypeArg}`);
+}
+
 async function setHeaderFooter(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const area = args.area === 'footer' ? 'footer' : 'header';
@@ -1110,12 +1381,19 @@ async function setHeaderFooter(call: AgentToolCall): Promise<ToolResult> {
 async function insertFootnoteFallback(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const content = asString(args.content);
+    const noteType = asString(args.noteType, 'footnote');
+    const target = asString(args.rangeRef, asString(args.target, 'selection'));
+    if (!content) return fail(call, 'INVALID_ARGS', 'insert_footnote_or_endnote 缺少 content');
     await Word.run(async (context) => {
-        const range = await getTargetRange(context, asString(args.target, 'selection'));
-        range.insertText(`〔注：${content}〕`, Word.InsertLocation.after);
+        const range = await getTargetRange(context, target);
+        if (noteType === 'endnote') {
+            range.insertEndnote(content);
+        } else {
+            range.insertFootnote(content);
+        }
         await context.sync();
     });
-    return ok(call, { content }, '已插入脚注标记');
+    return ok(call, { content, noteType, target }, noteType === 'endnote' ? '已插入尾注' : '已插入脚注');
 }
 
 async function insertCrossReferenceMarker(call: AgentToolCall): Promise<ToolResult> {
@@ -1179,10 +1457,12 @@ async function validateDocument(call: AgentToolCall): Promise<ToolResult> {
         await context.sync();
         const issues: string[] = [];
         let previousLevel = 0;
+        let emptyParagraphs = 0;
         paragraphs.items.forEach((paragraph, index) => {
             const text = paragraph.text.trim();
             const match = String(paragraph.style || '').match(/heading\s*(\d)/i);
             if (match && !text) issues.push(`空标题：${rangeRefForParagraph(index)}`);
+            if (!text) emptyParagraphs += 1;
             if (match) {
                 const level = Number(match[1]);
                 if (previousLevel && level > previousLevel + 1) {
@@ -1191,8 +1471,29 @@ async function validateDocument(call: AgentToolCall): Promise<ToolResult> {
                 previousLevel = level;
             }
         });
-        return ok(call, { issues }, issues.length ? `发现 ${issues.length} 个问题` : '文档验证通过');
+        if (emptyParagraphs > Math.max(10, paragraphs.items.length * 0.25)) {
+            issues.push(`空段落偏多：${emptyParagraphs}/${paragraphs.items.length}`);
+        }
+        return ok(call, { issues, checked: ['headings', 'emptyParagraphs', 'styleConsistency'] }, issues.length ? `发现 ${issues.length} 个问题` : '文档验证通过');
     });
+}
+
+async function previewChanges(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const operationIds = Array.isArray(args.operationIds)
+        ? args.operationIds.filter((item): item is string => typeof item === 'string')
+        : undefined;
+    const operations = listToolOperations(operationIds);
+    const summary = operations.length
+        ? operations.map(op => `${op.ok ? '✓' : '✗'} ${op.toolName}: ${op.summary}${op.affectedRangeRefs.length ? ` (${op.affectedRangeRefs.join(', ')})` : ''}`).join('\n')
+        : '暂无可预览的工具操作';
+    return ok(call, { operationIds, operations, diffSummary: summary }, operations.length ? `已生成 ${operations.length} 个操作的变更预览` : '暂无可预览的变更');
+}
+
+async function refreshDocumentIndex(call: AgentToolCall): Promise<ToolResult> {
+    const outline = await getDocumentOutline({ ...call, name: 'get_document_outline', arguments: { includeStats: true, maxDepth: 9, tailCount: 20 } });
+    const inventory = await getDocumentInventory({ ...call, name: 'get_document_inventory', arguments: { includeStyles: true, includeFields: true, includeControls: true } });
+    return ok(call, { outline: outline.data, inventory: inventory.data }, '已刷新文档索引');
 }
 
 async function rollbackTurn(call: AgentToolCall): Promise<ToolResult> {
