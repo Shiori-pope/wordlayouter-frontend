@@ -534,7 +534,8 @@ const App: React.FC = () => {
         setAgentStatus(event.message);
         if (event.type === 'thinking') {
             animateAgentTokensTo(event.totalTokens);
-            appendAgentTrace(`↓ +${event.tokens} tokens 思考，总计约 ${event.totalTokens}`);
+            setStreamingContent(`Agent 思考中，约 ${event.totalTokens} tokens`);
+            return;
         } else if (event.type === 'tool' || event.type === 'tool_result') {
             appendAgentTrace(event.message);
         } else {
