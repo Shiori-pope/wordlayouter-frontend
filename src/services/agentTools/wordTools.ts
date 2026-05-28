@@ -14,6 +14,7 @@ import { deleteSnapshot, restoreSnapshot } from '../documentSnapshotService';
 import { applyInlineStyles, insertHtmlAsDocx } from '../../utils/htmlParser';
 import { listToolOperations, recordToolOperation } from './toolOperationService';
 import { validateToolArguments } from './toolValidationService';
+import { parseRangeRef } from './rangeRefService';
 import {
     ensureContentType,
     ensureRelationship,
@@ -435,6 +436,34 @@ async function getTargetRange(context: Word.RequestContext, target: AgentTarget)
     if (target === 'body') {
         return context.document.body.getRange();
     }
+    const parsed = parseRangeRef(target);
+    if (parsed?.kind === 'table-cell') {
+        const tables = context.document.body.tables;
+        tables.load('items');
+        await context.sync();
+        const table = tables.items[parsed.tableIndex];
+        if (table) {
+            const cell = table.getCell(parsed.rowIndex, parsed.cellIndex);
+            return cell.body.getRange();
+        }
+    }
+    if (parsed?.kind === 'header-footer-paragraph') {
+        const sections = context.document.sections;
+        sections.load('items');
+        await context.sync();
+        const section = sections.items[parsed.sectionIndex];
+        if (section) {
+            const body = parsed.story === 'footer'
+                ? section.getFooter(normalizeHeaderFooterType(parsed.headerFooterKind))
+                : section.getHeader(normalizeHeaderFooterType(parsed.headerFooterKind));
+            const paragraphs = body.paragraphs;
+            paragraphs.load('items');
+            await context.sync();
+            const paragraph = paragraphs.items[parsed.paragraphIndex];
+            if (paragraph) return paragraph.getRange();
+            return body.getRange();
+        }
+    }
     const blockRange = parseParagraphBlockRangeRef(target);
     if (blockRange) {
         const paragraphs = context.document.body.paragraphs;
@@ -535,6 +564,8 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
                 rangeRef: { type: 'string' },
                 afterRangeRef: { type: 'string' },
                 beforeRangeRef: { type: 'string' },
+                story: { type: 'string', enum: ['body', 'header', 'footer'] },
+                sectionIndex: { type: 'number' },
                 maxParagraphs: { type: 'number' },
                 maxChars: { type: 'number' },
                 includeFormat: { type: 'string', enum: ['none', 'summary'] },
@@ -577,30 +608,30 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
             },
         },
     },
-    { name: 'insert_content', risk: 'write', description: 'Low-level insert text, HTML, DocIR, or OOXML content. For full sections prefer insert_section.', parameters: { type: 'object', required: ['content'], properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, format: { type: 'string', enum: ['text', 'html', 'docir', 'ooxml'] }, content: { type: 'string' } } } },
-    { name: 'replace_range', risk: 'write', description: 'Replace a rangeRef with new content.', parameters: {} },
-    { name: 'delete_range', risk: 'destructive', description: 'Delete a rangeRef.', parameters: {} },
+    { name: 'insert_content', risk: 'write', description: 'Low-level insert text, HTML, DocIR, or OOXML content. For full sections prefer insert_section.', parameters: { type: 'object', additionalProperties: false, required: ['content'], properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, format: { type: 'string', enum: ['text', 'html', 'docir', 'ooxml'] }, content: { type: 'string' } } } },
+    { name: 'replace_range', risk: 'write', description: 'Replace a rangeRef with new content.', parameters: { type: 'object', additionalProperties: false, required: ['rangeRef', 'content'], properties: { rangeRef: { type: 'string' }, content: { type: 'string' }, format: { type: 'string', enum: ['text', 'html', 'docir', 'ooxml'] } } } },
+    { name: 'delete_range', risk: 'destructive', description: 'Delete a rangeRef.', parameters: { type: 'object', additionalProperties: false, required: ['rangeRef'], properties: { rangeRef: { type: 'string' } } } },
     { name: 'set_paragraph_format', risk: 'write', description: 'Apply paragraph formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'set_text_format', risk: 'write', description: 'Apply text formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'apply_named_style', risk: 'write', description: 'Apply a Word named style to a target/rangeRef. For headings prefer built-in names Heading1..Heading9, not localized UI text.', parameters: { type: 'object', additionalProperties: false, required: ['styleName'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, styleName: { type: 'string' } } } },
     { name: 'define_or_update_style', risk: 'write', description: 'Define or update a Word style. Uses OOXML package editing when Office.js style creation is unavailable.', parameters: { type: 'object', additionalProperties: false, required: ['styleName', 'type', 'style'], properties: { styleName: { type: 'string' }, type: { type: 'string', enum: ['paragraph', 'character', 'table', 'list'] }, basedOn: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'manage_headings', risk: 'write', description: 'Bulk apply heading outline levels. Use this instead of many apply_named_style calls when changing a document outline.', parameters: { type: 'object', additionalProperties: false, properties: { updates: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['rangeRef', 'level'], properties: { rangeRef: { type: 'string' }, level: { type: 'number' } } } }, rangeRefs: { type: 'array', items: { type: 'string' } }, level: { type: 'number' } } } },
-    { name: 'insert_table_or_update_table', risk: 'write', description: 'Insert a simple table.', parameters: {} },
+    { name: 'insert_table_or_update_table', risk: 'write', description: 'Insert or update a table with rows and optional target.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, table: { type: 'array' }, rows: { type: 'array' }, style: { type: 'object' } } } },
     { name: 'update_table', risk: 'write', description: 'Update an existing table by rangeRef or table index.', parameters: { type: 'object', additionalProperties: false, properties: { tableRef: { type: 'string' }, tableIndex: { type: 'number' }, rows: { type: 'array' }, style: { type: 'object' } } } },
-    { name: 'insert_toc', risk: 'write', description: 'Insert a table of contents field.', parameters: {} },
-    { name: 'set_page_setup', risk: 'write', description: 'Apply section page setup.', parameters: {} },
+    { name: 'insert_toc', risk: 'write', description: 'Insert a table of contents field.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, levels: { type: 'number' } } } },
+    { name: 'set_page_setup', risk: 'write', description: 'Apply section page setup.', parameters: { type: 'object', additionalProperties: false, properties: { sectionIndex: { type: 'number' }, margins: { type: 'object' }, orientation: { type: 'string', enum: ['portrait', 'landscape', 'Portrait', 'Landscape'] }, paperSize: { type: 'string' }, columns: { type: 'number' } } } },
     { name: 'set_section_break', risk: 'write', description: 'Insert a section break at target.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, breakType: { type: 'string', enum: ['nextPage', 'continuous', 'evenPage', 'oddPage'] } } } },
-    { name: 'set_header_footer', risk: 'write', description: 'Set section header or footer content.', parameters: {} },
-    { name: 'insert_footnote_or_endnote', risk: 'write', description: 'Insert a footnote or endnote marker fallback.', parameters: {} },
-    { name: 'insert_cross_reference_marker', risk: 'write', description: 'Insert a local cross-reference marker.', parameters: {} },
-    { name: 'manage_citations', risk: 'write', description: 'Insert or update local citation blocks.', parameters: {} },
-    { name: 'add_comment', risk: 'write', description: 'Add a Word comment when supported.', parameters: {} },
-    { name: 'get_comments', risk: 'read', description: 'Read Word comments when supported.', parameters: {} },
-    { name: 'preview_changes', risk: 'read', description: 'Summarize planned changes.', parameters: {} },
-    { name: 'validate_document', risk: 'read', description: 'Run lightweight document validation.', parameters: {} },
+    { name: 'set_header_footer', risk: 'write', description: 'Set section header or footer content.', parameters: { type: 'object', additionalProperties: false, required: ['area', 'content'], properties: { sectionIndex: { type: 'number' }, kind: { type: 'string', enum: ['primary', 'firstPage', 'evenPages'] }, area: { type: 'string', enum: ['header', 'footer'] }, content: { type: 'string' }, format: { type: 'string', enum: ['text', 'html', 'docir', 'ooxml'] } } } },
+    { name: 'insert_footnote_or_endnote', risk: 'write', description: 'Insert a real Word footnote or endnote.', parameters: { type: 'object', additionalProperties: false, required: ['content'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, noteType: { type: 'string', enum: ['footnote', 'endnote'] }, content: { type: 'string' } } } },
+    { name: 'insert_cross_reference_marker', risk: 'write', description: 'Insert a local cross-reference marker.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, id: { type: 'string' }, label: { type: 'string' } } } },
+    { name: 'manage_citations', risk: 'write', description: 'Insert or update local citation blocks.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, action: { type: 'string' }, citation: { type: 'object' }, text: { type: 'string' } } } },
+    { name: 'add_comment', risk: 'write', description: 'Add a Word comment when supported.', parameters: { type: 'object', additionalProperties: false, required: ['content'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, content: { type: 'string' } } } },
+    { name: 'get_comments', risk: 'read', description: 'Read Word comments when supported.', parameters: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string' } } } },
+    { name: 'preview_changes', risk: 'read', description: 'Summarize planned changes.', parameters: { type: 'object', additionalProperties: false, properties: { operationIds: { type: 'array' } } } },
+    { name: 'validate_document', risk: 'read', description: 'Run lightweight document validation.', parameters: { type: 'object', additionalProperties: false, properties: { checks: { type: 'array' } } } },
     { name: 'refresh_document_index', risk: 'read', description: 'Refresh and return the current document index used by the agent context.', parameters: { type: 'object', additionalProperties: false, properties: {} } },
-    { name: 'rollback_turn', risk: 'rollback', description: 'Restore a turn snapshot.', parameters: {} },
-    { name: 'commit_turn', risk: 'rollback', description: 'Mark a snapshot as committed.', parameters: {} },
+    { name: 'rollback_turn', risk: 'rollback', description: 'Restore a turn snapshot.', parameters: { type: 'object', additionalProperties: false, required: ['snapshotId'], properties: { snapshotId: { type: 'string' } } } },
+    { name: 'commit_turn', risk: 'rollback', description: 'Mark a snapshot as committed.', parameters: { type: 'object', additionalProperties: false, properties: { snapshotId: { type: 'string' } } } },
 ];
 
 export function validateToolCall(raw: unknown): AgentToolCall | null {
@@ -746,6 +777,18 @@ async function getDocumentOutline(call: AgentToolCall): Promise<ToolResult> {
         await context.sync();
 
         const outline = buildHeadingSnapshot(paragraphs.items, maxDepth);
+        const tableRanges = tables.items.map((_table, index) => ({ rangeRef: `table:t${index}`, tableIndex: index }));
+        const sectionRanges = sections.items.map((_section, index) => ({
+            sectionRef: `section:s${index}`,
+            sectionIndex: index,
+            headers: ['primary', 'firstPage', 'evenPages'].map(kind => `section:s${index}:header:${kind}:p0`),
+            footers: ['primary', 'firstPage', 'evenPages'].map(kind => `section:s${index}:footer:${kind}:p0`),
+        }));
+        const footnotes = (context.document.body as unknown as { footnotes?: { load: (props?: string) => void; items?: unknown[] } }).footnotes;
+        if (footnotes) {
+            footnotes.load('items');
+            await context.sync();
+        }
         const tailParagraphs = tailCount > 0
             ? paragraphs.items
                 .slice(Math.max(0, paragraphs.items.length - tailCount))
@@ -763,6 +806,12 @@ async function getDocumentOutline(call: AgentToolCall): Promise<ToolResult> {
 
         const data = {
             outline,
+            tables: tableRanges,
+            sections: sectionRanges,
+            notes: {
+                footnotes: footnotes?.items?.length,
+                endnotes: 'available-via-document-ooxml',
+            },
             tailParagraphs,
             stats: {
                 paragraphs: paragraphs.items.length,
@@ -852,26 +901,28 @@ async function readRange(call: AgentToolCall): Promise<ToolResult> {
     const format = normalizeFormat(args.format);
     const maxChars = clamp(asNumber(args.maxChars, 4000), 200, 20000);
     if (!rangeRef) return fail(call, 'INVALID_ARGS', 'read_range 缺少 rangeRef');
+    const parsed = parseRangeRef(rangeRef);
+    const nextRangeRef = parsed?.kind === 'body-paragraph' ? rangeRefForParagraph(parsed.paragraphIndex + 1) : undefined;
 
     return Word.run(async (context) => {
         const range = await getTargetRange(context, rangeRef);
         if (format === 'html') {
             const result = range.getHtml();
             await context.sync();
-            return ok(call, { rangeRef, format, content: result.value.slice(0, maxChars) }, '已读取范围 HTML');
+            return ok(call, { rangeRef, format, content: result.value.slice(0, maxChars), nextRangeRef }, '已读取范围 HTML');
         }
         if (format === 'ooxml') {
             const result = range.getOoxml();
             await context.sync();
-            return ok(call, { rangeRef, format, content: result.value.slice(0, maxChars) }, '已读取范围 OOXML');
+            return ok(call, { rangeRef, format, content: result.value.slice(0, maxChars), nextRangeRef }, '已读取范围 OOXML');
         }
         range.load('text');
         await context.sync();
         const text = range.text.slice(0, maxChars);
         if (format === 'docir') {
-            return ok(call, { rangeRef, format, content: paragraphsToDocIR([{ text, rangeRef }]) }, '已读取范围 DocIR');
+            return ok(call, { rangeRef, format, content: paragraphsToDocIR([{ text, rangeRef }]), nextRangeRef }, '已读取范围 DocIR');
         }
-        return ok(call, { rangeRef, format, content: text }, '已读取范围文本');
+        return ok(call, { rangeRef, format, content: text, nextRangeRef }, '已读取范围文本');
     });
 }
 
@@ -879,9 +930,22 @@ async function readParagraphs(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const maxChars = clamp(asNumber(args.maxChars, 8000), 500, 30000);
     const includeFormat = args.includeFormat === 'none' ? 'none' : 'summary';
+    const story = asString(args.story, 'body');
+    const sectionIndex = clamp(asNumber(args.sectionIndex, 0), 0, 9999);
 
     return Word.run(async (context) => {
-        const paragraphs = context.document.body.paragraphs;
+        let body: Word.Body = context.document.body;
+        if (story === 'header' || story === 'footer') {
+            const sections = context.document.sections;
+            sections.load('items');
+            await context.sync();
+            const section = sections.items[sectionIndex];
+            if (!section) return fail(call, 'INVALID_ARGS', `找不到 section:s${sectionIndex}`);
+            body = story === 'header'
+                ? section.getHeader(Word.HeaderFooterType.primary)
+                : section.getFooter(Word.HeaderFooterType.primary);
+        }
+        const paragraphs = body.paragraphs;
         paragraphs.load('items/text,items/style,items/font,items/alignment');
         await context.sync();
 
@@ -908,9 +972,11 @@ async function readParagraphs(call: AgentToolCall): Promise<ToolResult> {
         const last = items.length > 0 ? items[items.length - 1].paragraphIndex : window.start;
         const nextStart = last + 1 <= window.end ? last + 1 : undefined;
         const data = {
-            rangeRef: `body:p${window.start}-${last}`,
+            rangeRef: story === 'body' ? `body:p${window.start}-${last}` : `section:s${sectionIndex}:${story}:primary:p${window.start}-${last}`,
             startParagraph: window.start,
             endParagraph: last,
+            story,
+            sectionIndex: story === 'body' ? undefined : sectionIndex,
             paragraphs: items,
             text: items.map(item => item.text).join('\n'),
             truncated,
@@ -937,29 +1003,57 @@ async function grepDocument(call: AgentToolCall): Promise<ToolResult<GrepDocumen
         paragraphs.load('items/text,items/style,items/font,items/alignment');
         await context.sync();
 
+        const sources: Array<{ story: 'body' | 'header' | 'footer'; sectionIndex: number; paragraphs: Word.Paragraph[] }> = [];
+        if (!params.scope || params.scope === 'body' || params.scope === 'all') {
+            sources.push({ story: 'body', sectionIndex: 0, paragraphs: paragraphs.items });
+        }
+        if (params.scope === 'headers' || params.scope === 'footers' || params.scope === 'all') {
+            const sections = context.document.sections;
+            sections.load('items');
+            await context.sync();
+            for (let sectionIndex = 0; sectionIndex < sections.items.length; sectionIndex++) {
+                const section = sections.items[sectionIndex];
+                for (const story of ['header', 'footer'] as const) {
+                    if (params.scope !== 'all' && params.scope !== `${story}s`) continue;
+                    const body = story === 'header'
+                        ? section.getHeader(Word.HeaderFooterType.primary)
+                        : section.getFooter(Word.HeaderFooterType.primary);
+                    const storyParagraphs = body.paragraphs;
+                    storyParagraphs.load('items/text,items/style,items/font,items/alignment');
+                    await context.sync();
+                    sources.push({ story, sectionIndex, paragraphs: storyParagraphs.items });
+                }
+            }
+        }
+
         const matches = [];
         const flags = params.matchCase ? 'g' : 'gi';
         const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = mode === 'regex_fallback' ? new RegExp(query, flags) : new RegExp(escaped, flags);
 
-        for (let paragraphIndex = 0; paragraphIndex < paragraphs.items.length; paragraphIndex++) {
-            const paragraph = paragraphs.items[paragraphIndex];
-            const text = paragraph.text || '';
-            let match: RegExpExecArray | null;
-            regex.lastIndex = 0;
-            while ((match = regex.exec(text)) && matches.length < cursor + maxResults + 1) {
-                const start = match.index;
-                const end = start + match[0].length;
-                const around = trimAround(text, start, end, contextChars);
-                matches.push({
-                    rangeRef: `${rangeRefForParagraph(paragraphIndex)}:r${start}-${end}`,
-                    story: 'body' as const,
-                    sectionIndex: 0,
-                    paragraphIndex,
-                    ...around,
-                    format: includeFormat === 'none' ? undefined : styleFromParagraph(paragraph),
-                });
-                if (match[0].length === 0) regex.lastIndex += 1;
+        for (const source of sources) {
+            for (let paragraphIndex = 0; paragraphIndex < source.paragraphs.length; paragraphIndex++) {
+                const paragraph = source.paragraphs[paragraphIndex];
+                const text = paragraph.text || '';
+                let match: RegExpExecArray | null;
+                regex.lastIndex = 0;
+                while ((match = regex.exec(text)) && matches.length < cursor + maxResults + 1) {
+                    const start = match.index;
+                    const end = start + match[0].length;
+                    const around = trimAround(text, start, end, contextChars);
+                    const rangeRef = source.story === 'body'
+                        ? `${rangeRefForParagraph(paragraphIndex)}:r${start}-${end}`
+                        : `section:s${source.sectionIndex}:${source.story}:primary:p${paragraphIndex}`;
+                    matches.push({
+                        rangeRef,
+                        story: source.story,
+                        sectionIndex: source.sectionIndex,
+                        paragraphIndex,
+                        ...around,
+                        format: includeFormat === 'none' ? undefined : styleFromParagraph(paragraph),
+                    });
+                    if (match[0].length === 0) regex.lastIndex += 1;
+                }
             }
         }
 
@@ -1149,6 +1243,10 @@ function applyParagraphStyle(paragraph: Word.Paragraph, style: AnyRecord) {
         lineSpacing?: number;
         spaceBefore?: number;
         spaceAfter?: number;
+        outlineLevel?: number;
+        keepWithNext?: boolean;
+        pageBreakBefore?: boolean;
+        widowControl?: boolean;
     };
     if (typeof style.alignment === 'string') p.alignment = style.alignment;
     if (typeof style.leftIndentPt === 'number') p.leftIndent = style.leftIndentPt;
@@ -1157,6 +1255,10 @@ function applyParagraphStyle(paragraph: Word.Paragraph, style: AnyRecord) {
     if (typeof style.lineSpacingPt === 'number') p.lineSpacing = style.lineSpacingPt;
     if (typeof style.spaceBeforePt === 'number') p.spaceBefore = style.spaceBeforePt;
     if (typeof style.spaceAfterPt === 'number') p.spaceAfter = style.spaceAfterPt;
+    if (typeof style.outlineLevel === 'number') p.outlineLevel = clamp(style.outlineLevel - 1, 0, 8);
+    if (typeof style.keepWithNext === 'boolean') p.keepWithNext = style.keepWithNext;
+    if (typeof style.pageBreakBefore === 'boolean') p.pageBreakBefore = style.pageBreakBefore;
+    if (typeof style.widowControl === 'boolean') p.widowControl = style.widowControl;
 }
 
 async function setParagraphFormat(call: AgentToolCall): Promise<ToolResult> {
@@ -1180,13 +1282,17 @@ async function setTextFormat(call: AgentToolCall): Promise<ToolResult> {
     const style = asRecord(args.style);
     await Word.run(async (context) => {
         const range = await getTargetRange(context, target);
+        const rangeWithFont = range as unknown as { font: Word.Font & { superscript?: boolean; subscript?: boolean; eastAsiaName?: string } };
         if (typeof style.fontFamily === 'string') range.font.name = style.fontFamily;
+        if (typeof style.eastAsiaFont === 'string') rangeWithFont.font.eastAsiaName = style.eastAsiaFont;
         if (typeof style.fontSizePt === 'number') range.font.size = style.fontSizePt;
         if (typeof style.bold === 'boolean') range.font.bold = style.bold;
         if (typeof style.italic === 'boolean') range.font.italic = style.italic;
         if (typeof style.underline === 'boolean') range.font.underline = style.underline ? Word.UnderlineType.single : Word.UnderlineType.none;
         if (typeof style.color === 'string') range.font.color = style.color;
         if (typeof style.highlightColor === 'string') range.font.highlightColor = style.highlightColor;
+        if (typeof style.superscript === 'boolean') rangeWithFont.font.superscript = style.superscript;
+        if (typeof style.subscript === 'boolean') rangeWithFont.font.subscript = style.subscript;
         await context.sync();
     });
     return ok(call, { target, style }, '已设置文本格式');
@@ -1370,7 +1476,7 @@ async function setHeaderFooter(call: AgentToolCall): Promise<ToolResult> {
             ? section.getFooter(normalizeHeaderFooterType(args.kind))
             : section.getHeader(normalizeHeaderFooterType(args.kind));
         body.clear();
-        if (format === 'html') body.insertHtml(content, Word.InsertLocation.start);
+        if (format === 'html') body.insertHtml(applyInlineStyles(content, activeAgentCssStyles), Word.InsertLocation.start);
         else if (format === 'ooxml') body.insertOoxml(content, Word.InsertLocation.start);
         else body.insertText(content, Word.InsertLocation.start);
         await context.sync();
@@ -1401,7 +1507,7 @@ async function insertCrossReferenceMarker(call: AgentToolCall): Promise<ToolResu
     const id = asString(args.id, `ref-${Date.now()}`);
     const label = asString(args.label, id);
     await Word.run(async (context) => {
-        const range = await getTargetRange(context, asString(args.target, 'selection'));
+        const range = await getTargetRange(context, asString(args.rangeRef, asString(args.target, 'selection')));
         const cc = range.insertContentControl();
         cc.tag = id;
         cc.title = label;
@@ -1426,23 +1532,25 @@ async function manageCitations(call: AgentToolCall): Promise<ToolResult> {
 async function addComment(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
     const content = asString(args.content);
-    await Word.run(async (context) => {
-        const range = await getTargetRange(context, asString(args.target, 'selection'));
+    const supported = await Word.run(async (context) => {
+        const range = await getTargetRange(context, asString(args.rangeRef, asString(args.target, 'selection')));
         const r = range as unknown as { insertComment?: (text: string) => void };
         if (typeof r.insertComment === 'function') {
             r.insertComment(content);
+            await context.sync();
+            return true;
         } else {
-            range.insertText(`〔批注：${content}〕`, Word.InsertLocation.after);
+            return false;
         }
-        await context.sync();
     });
+    if (!supported) return fail(call, 'UNSUPPORTED_CAPABILITY', '当前 Word API 不支持添加批注');
     return ok(call, { content }, '已添加批注');
 }
 
 async function getComments(call: AgentToolCall): Promise<ToolResult> {
     return Word.run(async (context) => {
         const body = context.document.body as unknown as { getComments?: () => { load: (props?: string) => void; items?: unknown[] } };
-        if (!body.getComments) return ok(call, { comments: [] }, '当前 Word API 不支持读取批注');
+        if (!body.getComments) return fail(call, 'UNSUPPORTED_CAPABILITY', '当前 Word API 不支持读取批注');
         const comments = body.getComments();
         comments.load();
         await context.sync();
