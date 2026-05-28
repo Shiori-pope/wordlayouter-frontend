@@ -29,6 +29,7 @@ interface ModelStep {
 
 interface ModelCallbacks {
     onReasoningDelta?: (delta: string, tokenDelta: number) => void;
+    onContentDelta?: (delta: string) => void;
 }
 
 const DEFAULT_MAX_RUNTIME_MS = 10 * 60 * 1000;
@@ -37,6 +38,7 @@ const DEFAULT_MAX_CONSECUTIVE_NO_PROGRESS_STEPS = 3;
 export type AgentRunEvent =
     | { type: 'status'; message: string; step?: number; elapsedMs?: number }
     | { type: 'thinking'; message: string; tokens: number; totalTokens: number; step?: number }
+    | { type: 'assistant_delta'; message: string; delta: string; step?: number }
     | { type: 'tool'; message: string; toolName: AgentToolName; argsPreview: string; args: unknown; step?: number }
     | { type: 'tool_result'; message: string; toolName: AgentToolName; ok: boolean; summary: string; step?: number };
 
@@ -69,7 +71,7 @@ function buildAgentSystemPrompt(permissionMode: string, layoutPreset?: LayoutPre
 7. 用户要求“增加章节/插入小节/补充一节”时，优先调用 find_insert_position 定位，再调用 insert_section 插入完整章节；只有 confidence < 0.6 时再用 read_paragraphs 补充上下文。
 8. 插入富文本内容必须使用 format:"html" 或 insert_section；禁止把 Markdown 代码块或 HTML 代码围栏作为正文插入。HTML 插入工具会自动应用当前版式 CSS 并内联化，必要时你也可以直接给 inline style。
 9. read_range 支持 body:p10 和 body:p10-20。需要连续阅读时优先用 read_paragraphs，一次读取几十个短段落并受 maxChars 限制，避免逐段调用。
-10. 批量修改标题/大纲层级时优先调用 manage_headings，不要连续调用很多次 apply_named_style。apply_named_style 的目标参数用 rangeRef 或 target，标题样式名用 Heading1..Heading9。
+10. 批量修改标题/大纲层级时优先调用 manage_headings，不要连续调用很多次 apply_named_style。用户只说“加大纲层级/改大纲层级”时必须保持原字体、字号、颜色，manage_headings 不要传 applyNamedStyle:true；只有用户明确要求“套用标题样式/改成标题样式”时才用 Heading1..Heading9。
 11. 批量或复杂操作后调用 validate_document；标准模式计划可用 preview_changes 说明 operationId、受影响范围和风险。
 12. 工具参数必须严格匹配 schema；不要传未知字段。表格整体读取用 table:tN，单元格用 table:tN:rR:cC。
 
@@ -239,6 +241,7 @@ async function parseOpenAICompatibleStream(
 
         if (delta.content) {
             content += delta.content;
+            callbacks?.onContentDelta?.(delta.content);
         }
 
         const reasoningDelta = delta.reasoning_content || delta.reasoning?.content || '';
@@ -563,6 +566,9 @@ export async function runAgentTurn(
                     streamedReasoningTokens += tokenDelta;
                     totalReasoningTokens += tokenDelta;
                     onEvent?.({ type: 'thinking', message: `模型流式思考中`, tokens: tokenDelta, totalTokens: totalReasoningTokens, step: stepIndex });
+                },
+                onContentDelta: (delta) => {
+                    onEvent?.({ type: 'assistant_delta', message: delta, delta, step: stepIndex });
                 },
             });
             const unstreamedReasoningTokens = Math.max(0, step.reasoningTokens - streamedReasoningTokens);

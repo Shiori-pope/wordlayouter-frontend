@@ -231,6 +231,11 @@ function applyNamedStyleToParagraph(paragraph: Word.Paragraph, styleName: string
     }
 }
 
+function applyOutlineLevelToParagraph(paragraph: Word.Paragraph, level: number) {
+    const p = paragraph as unknown as { outlineLevel?: number };
+    p.outlineLevel = clamp(level - 1, 0, 8);
+}
+
 function styleIdFromName(styleName: string): string {
     const builtIn = normalizeBuiltInStyleName(styleName);
     if (builtIn) return builtIn;
@@ -622,7 +627,7 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
     { name: 'set_text_format', risk: 'write', description: 'Apply text formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
     { name: 'apply_named_style', risk: 'write', description: 'Apply a Word named style to a target/rangeRef. For headings prefer built-in names Heading1..Heading9, not localized UI text.', parameters: { type: 'object', additionalProperties: false, required: ['styleName'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, styleName: { type: 'string' } } } },
     { name: 'define_or_update_style', risk: 'write', description: 'Define or update a Word style. Uses OOXML package editing when Office.js style creation is unavailable.', parameters: { type: 'object', additionalProperties: false, required: ['styleName', 'type', 'style'], properties: { styleName: { type: 'string' }, type: { type: 'string', enum: ['paragraph', 'character', 'table', 'list'] }, basedOn: { type: 'string' }, style: { type: 'object' } } } },
-    { name: 'manage_headings', risk: 'write', description: 'Bulk apply heading outline levels. Use this instead of many apply_named_style calls when changing a document outline.', parameters: { type: 'object', additionalProperties: false, properties: { updates: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['rangeRef', 'level'], properties: { rangeRef: { type: 'string' }, level: { type: 'number' } } } }, rangeRefs: { type: 'array', items: { type: 'string' } }, level: { type: 'number' } } } },
+    { name: 'manage_headings', risk: 'write', description: 'Bulk set heading outline levels. By default preserves visual formatting; set applyNamedStyle true only when user explicitly wants Word Heading styles.', parameters: { type: 'object', additionalProperties: false, properties: { updates: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['rangeRef', 'level'], properties: { rangeRef: { type: 'string' }, level: { type: 'number' } } } }, rangeRefs: { type: 'array', items: { type: 'string' } }, level: { type: 'number' }, preserveFormatting: { type: 'boolean' }, applyNamedStyle: { type: 'boolean' } } } },
     { name: 'insert_table_or_update_table', risk: 'write', description: 'Insert or update a table with rows and optional target.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, table: { type: 'array' }, rows: { type: 'array' }, style: { type: 'object' } } } },
     { name: 'update_table', risk: 'write', description: 'Update an existing table by rangeRef or table index.', parameters: { type: 'object', additionalProperties: false, properties: { tableRef: { type: 'string' }, tableIndex: { type: 'number' }, rows: { type: 'array' }, style: { type: 'object' } } } },
     { name: 'insert_toc', risk: 'write', description: 'Insert a table of contents field.', parameters: { type: 'object', additionalProperties: false, properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, levels: { type: 'number' } } } },
@@ -1355,6 +1360,8 @@ async function defineOrUpdateStyle(call: AgentToolCall): Promise<ToolResult> {
 
 async function manageHeadings(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
+    const applyNamedStyle = args.applyNamedStyle === true;
+    const preserveFormatting = args.preserveFormatting !== false;
     const rawUpdates = Array.isArray(args.updates) ? args.updates : [];
     const updates = rawUpdates
         .map(item => asRecord(item))
@@ -1375,12 +1382,18 @@ async function manageHeadings(call: AgentToolCall): Promise<ToolResult> {
             const range = await getTargetRange(context, update.rangeRef);
             range.paragraphs.load('items');
             await context.sync();
-            range.paragraphs.items.forEach(paragraph => applyNamedStyleToParagraph(paragraph, headingStyleName(update.level)));
+            range.paragraphs.items.forEach(paragraph => {
+                if (applyNamedStyle && !preserveFormatting) {
+                    applyNamedStyleToParagraph(paragraph, headingStyleName(update.level));
+                } else {
+                    applyOutlineLevelToParagraph(paragraph, update.level);
+                }
+            });
         }
         await context.sync();
     });
 
-    return ok(call, { updated: updates.length }, `已更新 ${updates.length} 个标题层级`);
+    return ok(call, { updated: updates.length, preserveFormatting, applyNamedStyle }, `已更新 ${updates.length} 个大纲层级${preserveFormatting ? '，已保留原格式' : ''}`);
 }
 
 async function insertTable(call: AgentToolCall): Promise<ToolResult> {

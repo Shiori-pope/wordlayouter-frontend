@@ -492,6 +492,19 @@ const App: React.FC = () => {
         setAgentTrace(prev => [...prev, line].slice(-40));
     };
 
+    const appendAgentNarration = (delta: string) => {
+        setAgentTrace(prev => {
+            const next = [...prev];
+            const lastIndex = next.length - 1;
+            if (lastIndex >= 0 && next[lastIndex].startsWith('Agent：')) {
+                next[lastIndex] = `${next[lastIndex]}${delta}`;
+                return next.slice(-40);
+            }
+            next.push(`Agent：${delta}`);
+            return next.slice(-40);
+        });
+    };
+
     const animateAgentTokensTo = (targetTokens: number) => {
         agentTargetTokensRef.current = Math.max(agentTargetTokensRef.current, targetTokens);
         if (agentThinkingTimerRef.current) return;
@@ -531,6 +544,11 @@ const App: React.FC = () => {
         }
 
         console.log('[WordAgent:UI]', event);
+        if (event.type === 'assistant_delta') {
+            appendAgentNarration(event.delta);
+            setStreamingContent(event.delta);
+            return;
+        }
         setAgentStatus(event.message);
         if (event.type === 'thinking') {
             animateAgentTokensTo(event.totalTokens);
