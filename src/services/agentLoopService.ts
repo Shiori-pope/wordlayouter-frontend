@@ -249,7 +249,6 @@ async function parseOpenAICompatibleStream(
             reasoningContent += reasoningDelta;
             const tokenDelta = estimateTokens(reasoningDelta);
             callbacks?.onReasoningDelta?.(reasoningDelta, tokenDelta);
-            debugAgent('model:stream:reasoning-delta', { tokenDelta, chars: reasoningDelta.length });
         }
 
         for (const rawToolCall of delta.tool_calls || []) {
@@ -579,6 +578,7 @@ export async function runAgentTurn(
             debugAgent('model:step', {
                 step: stepIndex,
                 content: step.content,
+                reasoningContent: step.reasoningContent,
                 reasoningTokens: step.reasoningTokens,
                 totalReasoningTokens,
                 toolCalls: step.toolCalls,

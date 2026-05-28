@@ -236,6 +236,32 @@ function applyOutlineLevelToParagraph(paragraph: Word.Paragraph, level: number) 
     p.outlineLevel = clamp(level - 1, 0, 8);
 }
 
+function paragraphIndexFromRangeRef(rangeRef: string): number | null {
+    const parsed = parseRangeRef(rangeRef);
+    if (parsed?.kind === 'body-paragraph') return parsed.paragraphIndex;
+    return null;
+}
+
+function ensureChildElement(doc: Document, parent: Element, tagName: string): Element {
+    const existing = Array.from(parent.childNodes).find(node => node instanceof Element && node.tagName === tagName) as Element | undefined;
+    if (existing) return existing;
+    const element = doc.createElement(tagName);
+    parent.appendChild(element);
+    return element;
+}
+
+function setParagraphOutlineLevelInDocumentXml(doc: Document, paragraphIndex: number, level: number): boolean {
+    const paragraphs = Array.from(doc.getElementsByTagName('w:p'));
+    const paragraph = paragraphs[paragraphIndex];
+    if (!paragraph) return false;
+    const pPr = ensureChildElement(doc, paragraph, 'w:pPr');
+    const existing = Array.from(pPr.getElementsByTagName('w:outlineLvl'))[0];
+    const outline = existing || doc.createElement('w:outlineLvl');
+    outline.setAttribute('w:val', String(clamp(level - 1, 0, 8)));
+    if (!existing) pPr.appendChild(outline);
+    return true;
+}
+
 function styleIdFromName(styleName: string): string {
     const builtIn = normalizeBuiltInStyleName(styleName);
     if (builtIn) return builtIn;
@@ -1377,18 +1403,31 @@ async function manageHeadings(call: AgentToolCall): Promise<ToolResult> {
 
     if (updates.length === 0) return fail(call, 'INVALID_ARGS', 'manage_headings 缺少 updates 或 rangeRefs');
 
+    if (!applyNamedStyle || preserveFormatting) {
+        const pkg = await getCurrentDocxPackage();
+        const doc = await parseXmlPart(pkg, 'word/document.xml');
+        if (!doc) return fail(call, 'UNSUPPORTED_CAPABILITY', '无法读取 word/document.xml，不能直接设置大纲层级');
+        const changed: string[] = [];
+        const missed: string[] = [];
+        for (const update of updates) {
+            const paragraphIndex = paragraphIndexFromRangeRef(update.rangeRef);
+            if (paragraphIndex === null || !setParagraphOutlineLevelInDocumentXml(doc, paragraphIndex, update.level)) {
+                missed.push(update.rangeRef);
+            } else {
+                changed.push(update.rangeRef);
+            }
+        }
+        writePart(pkg, 'word/document.xml', serializeXml(doc));
+        await replaceCurrentDocxPackage(pkg);
+        return ok(call, { updated: changed.length, missed, preserveFormatting: true, applyNamedStyle: false, method: 'ooxml' }, `已通过 OOXML 更新 ${changed.length} 个大纲层级，已保留原格式${missed.length ? `，${missed.length} 个范围未找到` : ''}`);
+    }
+
     await Word.run(async (context) => {
         for (const update of updates) {
             const range = await getTargetRange(context, update.rangeRef);
             range.paragraphs.load('items');
             await context.sync();
-            range.paragraphs.items.forEach(paragraph => {
-                if (applyNamedStyle && !preserveFormatting) {
-                    applyNamedStyleToParagraph(paragraph, headingStyleName(update.level));
-                } else {
-                    applyOutlineLevelToParagraph(paragraph, update.level);
-                }
-            });
+            range.paragraphs.items.forEach(paragraph => applyNamedStyleToParagraph(paragraph, headingStyleName(update.level)));
         }
         await context.sync();
     });
