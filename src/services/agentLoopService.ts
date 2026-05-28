@@ -50,6 +50,9 @@ function stringifyToolResult(result: ToolResult): string {
         summary: result.summary,
         data: result.data,
         error: result.error,
+        operationId: result.operationId,
+        affectedRangeRefs: result.affectedRangeRefs,
+        verification: result.verification,
     }).slice(0, 12000);
 }
 
@@ -58,8 +61,8 @@ function buildAgentSystemPrompt(permissionMode: string, layoutPreset?: LayoutPre
 
 执行规则：
 1. 默认不要让用户手工复制内容；需要改文档时必须调用工具。
-2. 不要臆造 rangeRef。只能使用 get_document_outline、grep_document、get_selection、read_range、read_paragraphs、find_insert_position 返回的 rangeRef。
-3. 需要理解全文时先调用 get_document_outline，再用 read_paragraphs 批量读取相关窗口；grep_document 只用于精确锚点搜索，不要用多个 grep 猜结构。
+2. 不要臆造 rangeRef。只能使用 get_document_outline、get_document_inventory、grep_document、get_selection、read_range、read_paragraphs、find_insert_position 返回的 rangeRef。支持 body:p10、body:p10-20、body:p10:r0-12、table:t0、table:t0:r1:c2、section:s0:header:primary:p0。
+3. 需要理解全文时先调用 get_document_outline 或 get_document_inventory，再用 read_paragraphs/read_range 批量读取相关窗口；grep_document 只用于精确锚点搜索，不要用多个 grep 猜结构。
 4. 当前权限模式：${permissionMode}。standard 模式只输出计划和工具调用；bypass 模式可以直接执行。
 5. 复杂格式优先使用 DocIR 或 HTML；精确底层结构、页眉页脚、目录、回退使用 OOXML 或专用工具。
 6. 工具执行后要验证关键结果，最终用中文简洁说明做了什么。
@@ -67,6 +70,8 @@ function buildAgentSystemPrompt(permissionMode: string, layoutPreset?: LayoutPre
 8. 插入富文本内容必须使用 format:"html" 或 insert_section；禁止把 Markdown 代码块或 HTML 代码围栏作为正文插入。HTML 插入工具会自动应用当前版式 CSS 并内联化，必要时你也可以直接给 inline style。
 9. read_range 支持 body:p10 和 body:p10-20。需要连续阅读时优先用 read_paragraphs，一次读取几十个短段落并受 maxChars 限制，避免逐段调用。
 10. 批量修改标题/大纲层级时优先调用 manage_headings，不要连续调用很多次 apply_named_style。apply_named_style 的目标参数用 rangeRef 或 target，标题样式名用 Heading1..Heading9。
+11. 批量或复杂操作后调用 validate_document；标准模式计划可用 preview_changes 说明 operationId、受影响范围和风险。
+12. 工具参数必须严格匹配 schema；不要传未知字段。表格整体读取用 table:tN，单元格用 table:tN:rR:cC。
 
 当前版式预设：
 ${layoutPreset?.formatDescription || '未指定'}

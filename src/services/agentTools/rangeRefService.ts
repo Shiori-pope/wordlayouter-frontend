@@ -4,6 +4,7 @@ export type ParsedRangeRef =
     | { kind: 'body-paragraph'; story: 'body'; paragraphIndex: number }
     | { kind: 'body-paragraph-range'; story: 'body'; startParagraph: number; endParagraph: number }
     | { kind: 'body-text-span'; story: 'body'; paragraphIndex: number; start: number; end: number }
+    | { kind: 'table'; story: 'table'; tableIndex: number }
     | { kind: 'table-cell'; story: 'table'; tableIndex: number; rowIndex: number; cellIndex: number }
     | { kind: 'header-footer-paragraph'; story: 'header' | 'footer'; sectionIndex: number; headerFooterKind: 'primary' | 'firstPage' | 'evenPages'; paragraphIndex: number }
     | { kind: 'note'; story: 'footnote' | 'endnote'; noteIndex: number; paragraphIndex?: number }
@@ -63,6 +64,11 @@ export function parseRangeRef(rangeRef: string | undefined | null): ParsedRangeR
             rowIndex: toNumber(match[2]),
             cellIndex: toNumber(match[3]),
         };
+    }
+
+    match = rangeRef.match(/^table:t(\d+)$/);
+    if (match) {
+        return { kind: 'table', story: 'table', tableIndex: toNumber(match[1]) };
     }
 
     match = rangeRef.match(/^section:s(\d+):(header|footer):(primary|firstPage|evenPages):p(\d+)$/);

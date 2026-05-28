@@ -437,6 +437,13 @@ async function getTargetRange(context: Word.RequestContext, target: AgentTarget)
         return context.document.body.getRange();
     }
     const parsed = parseRangeRef(target);
+    if (parsed?.kind === 'table') {
+        const tables = context.document.body.tables;
+        tables.load('items');
+        await context.sync();
+        const table = tables.items[parsed.tableIndex];
+        if (table) return table.getRange();
+    }
     if (parsed?.kind === 'table-cell') {
         const tables = context.document.body.tables;
         tables.load('items');
