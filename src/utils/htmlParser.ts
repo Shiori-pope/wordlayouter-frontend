@@ -1236,7 +1236,7 @@ import { CLASS_STYLE_MAP } from '../config/layoutConfig';
  * @param html HTML 内容
  * @param cssStyles 可选的排版预设 CSS
  */
-function applyInlineStyles(html: string, cssStyles?: string): string {
+export function applyInlineStyles(html: string, cssStyles?: string): string {
     // 0. 预处理 HTML：为所有无 class 的 <p> 标签添加临时 class="body-text"
     // 这样可以避免 p 选择器污染其他带 class 的 p 标签（如 title、heading 等）
     let preprocessedHtml = html.replace(/<p(\s+[^>]*)?>/gi, (match, attrs) => {

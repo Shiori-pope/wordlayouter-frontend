@@ -10,7 +10,7 @@ import {
 } from '../types/agent';
 import { createTurnSnapshot, restoreSnapshot } from './documentSnapshotService';
 import { buildInitialAgentContext, compactToolResults } from './agentContextService';
-import { AGENT_TOOL_DEFINITIONS, executeWordTool, validateToolCall } from './agentTools/wordTools';
+import { AGENT_TOOL_DEFINITIONS, executeWordTool, setAgentToolCssStyles, validateToolCall } from './agentTools/wordTools';
 
 interface ChatMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
@@ -25,6 +25,10 @@ interface ModelStep {
     toolCalls: AgentToolCall[];
     reasoningContent?: string;
     reasoningTokens: number;
+}
+
+interface ModelCallbacks {
+    onReasoningDelta?: (delta: string, tokenDelta: number) => void;
 }
 
 const DEFAULT_MAX_RUNTIME_MS = 10 * 60 * 1000;
@@ -60,8 +64,9 @@ function buildAgentSystemPrompt(permissionMode: string, layoutPreset?: LayoutPre
 5. 复杂格式优先使用 DocIR 或 HTML；精确底层结构、页眉页脚、目录、回退使用 OOXML 或专用工具。
 6. 工具执行后要验证关键结果，最终用中文简洁说明做了什么。
 7. 用户要求“增加章节/插入小节/补充一节”时，优先调用 find_insert_position 定位，再调用 insert_section 插入完整章节；只有 confidence < 0.6 时再用 read_paragraphs 补充上下文。
-8. 插入富文本内容必须使用 format:"html" 或 insert_section；禁止把 Markdown 代码块或 HTML 代码围栏作为正文插入。
+8. 插入富文本内容必须使用 format:"html" 或 insert_section；禁止把 Markdown 代码块或 HTML 代码围栏作为正文插入。HTML 插入工具会自动应用当前版式 CSS 并内联化，必要时你也可以直接给 inline style。
 9. read_range 支持 body:p10 和 body:p10-20。需要连续阅读时优先用 read_paragraphs，一次读取几十个短段落并受 maxChars 限制，避免逐段调用。
+10. 批量修改标题/大纲层级时优先调用 manage_headings，不要连续调用很多次 apply_named_style。apply_named_style 的目标参数用 rangeRef 或 target，标题样式名用 Heading1..Heading9。
 
 当前版式预设：
 ${layoutPreset?.formatDescription || '未指定'}
@@ -156,10 +161,139 @@ function normalizeOpenAIToolCalls(rawCalls: unknown[] | undefined): AgentToolCal
         .filter(Boolean) as AgentToolCall[];
 }
 
+function normalizeOpenAIStreamToolCalls(toolCallParts: Map<number, { id?: string; name?: string; argumentsText: string }>): AgentToolCall[] {
+    const rawCalls = Array.from(toolCallParts.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([, part]) => ({
+            id: part.id,
+            function: {
+                name: part.name,
+                arguments: part.argumentsText || '{}',
+            },
+        }));
+    return normalizeOpenAIToolCalls(rawCalls);
+}
+
+async function parseOpenAICompatibleStream(
+    response: Response,
+    callbacks?: ModelCallbacks
+): Promise<ModelStep> {
+    if (!response.body) throw new Error('当前运行环境不支持流式响应读取');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+    let reasoningContent = '';
+    const toolCallParts = new Map<number, { id?: string; name?: string; argumentsText: string }>();
+
+    const handlePayload = (payload: string) => {
+        if (!payload || payload === '[DONE]') return;
+        let parsed: {
+            choices?: Array<{
+                delta?: {
+                    content?: string;
+                    reasoning_content?: string;
+                    reasoning?: { content?: string };
+                    tool_calls?: Array<{
+                        index?: number;
+                        id?: string;
+                        function?: { name?: string; arguments?: string };
+                    }>;
+                };
+                message?: {
+                    content?: string;
+                    reasoning_content?: string;
+                    reasoning?: { content?: string };
+                    tool_calls?: unknown[];
+                };
+            }>;
+        };
+        try {
+            parsed = JSON.parse(payload);
+        } catch {
+            debugAgent('model:stream:bad-json', payload.slice(0, 500));
+            return;
+        }
+
+        const choice = parsed.choices?.[0];
+        const delta = choice?.delta;
+        const message = choice?.message;
+        if (message) {
+            content += message.content || '';
+            reasoningContent += message.reasoning_content || message.reasoning?.content || '';
+            for (const call of normalizeOpenAIToolCalls(message.tool_calls as unknown[] | undefined)) {
+                toolCallParts.set(toolCallParts.size, {
+                    id: call.id,
+                    name: call.name,
+                    argumentsText: JSON.stringify(call.arguments),
+                });
+            }
+        }
+        if (!delta) return;
+
+        if (delta.content) {
+            content += delta.content;
+        }
+
+        const reasoningDelta = delta.reasoning_content || delta.reasoning?.content || '';
+        if (reasoningDelta) {
+            reasoningContent += reasoningDelta;
+            const tokenDelta = estimateTokens(reasoningDelta);
+            callbacks?.onReasoningDelta?.(reasoningDelta, tokenDelta);
+            debugAgent('model:stream:reasoning-delta', { tokenDelta, chars: reasoningDelta.length });
+        }
+
+        for (const rawToolCall of delta.tool_calls || []) {
+            const index = rawToolCall.index ?? toolCallParts.size;
+            const current = toolCallParts.get(index) || { argumentsText: '' };
+            current.id = rawToolCall.id || current.id;
+            current.name = rawToolCall.function?.name || current.name;
+            current.argumentsText += rawToolCall.function?.arguments || '';
+            toolCallParts.set(index, current);
+        }
+    };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() || '';
+        for (const frame of frames) {
+            const dataLines = frame
+                .split(/\r?\n/)
+                .filter(line => line.startsWith('data:'))
+                .map(line => line.slice(5).trim());
+            for (const line of dataLines) handlePayload(line);
+        }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+        const dataLines = buffer
+            .split(/\r?\n/)
+            .filter(line => line.startsWith('data:'))
+            .map(line => line.slice(5).trim());
+        for (const line of dataLines) handlePayload(line);
+    }
+
+    const toolCalls = normalizeOpenAIStreamToolCalls(toolCallParts);
+    const parsedFallback = parseJsonFallback(content);
+    if (parsedFallback) return parsedFallback;
+    return {
+        content,
+        toolCalls,
+        reasoningContent,
+        reasoningTokens: estimateTokens(reasoningContent),
+    };
+}
+
 async function callOpenAICompatible(
     model: ModelConfig,
     messages: ChatMessage[],
-    useTools: boolean
+    useTools: boolean,
+    callbacks?: ModelCallbacks
 ): Promise<ModelStep> {
     const apiKey = getModelApiKey(model);
     if (!apiKey) throw new Error('请先配置 API Key');
@@ -184,12 +318,23 @@ async function callOpenAICompatible(
             max_tokens: Math.min(model.maxTokens || 8192, 8192),
             tools: useTools ? toOpenAITools() : undefined,
             tool_choice: useTools ? 'auto' : undefined,
+            stream: model.supportsStreaming !== false,
         }),
     });
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+    }
+
+    if (model.supportsStreaming !== false) {
+        const step = await parseOpenAICompatibleStream(response, callbacks);
+        debugAgent('model:response:openai-compatible:streamed', {
+            content: step.content,
+            reasoningTokens: step.reasoningTokens,
+            toolCalls: step.toolCalls,
+        });
+        return step;
     }
 
     const data = await response.json();
@@ -244,7 +389,7 @@ async function callAnthropic(
             tools: useTools ? AGENT_TOOL_DEFINITIONS.map(tool => ({
                 name: tool.name,
                 description: `${tool.description} Risk: ${tool.risk}.`,
-                input_schema: { type: 'object', additionalProperties: true, properties: {} },
+                input_schema: tool.parameters?.type ? tool.parameters : { type: 'object', additionalProperties: true, properties: {} },
             })) : undefined,
         }),
     });
@@ -312,14 +457,14 @@ async function callGoogleOrFallback(model: ModelConfig, messages: ChatMessage[])
     return parseJsonFallback(text) || { content: text, toolCalls: [], reasoningTokens: 0 };
 }
 
-async function callAgentModel(model: ModelConfig, messages: ChatMessage[], useTools: boolean): Promise<ModelStep> {
+async function callAgentModel(model: ModelConfig, messages: ChatMessage[], useTools: boolean, callbacks?: ModelCallbacks): Promise<ModelStep> {
     if (model.provider === 'anthropic') {
         return callAnthropic(model, messages, useTools);
     }
     if (model.provider === 'google') {
         return callGoogleOrFallback(model, messages);
     }
-    return callOpenAICompatible(model, messages, useTools);
+    return callOpenAICompatible(model, messages, useTools, callbacks);
 }
 
 function planFromStep(step: ModelStep): AgentPlan {
@@ -354,6 +499,7 @@ export async function runAgentTurn(
     const snapshot = await createTurnSnapshot(`Agent turn: ${options.userMessage.slice(0, 40)}`);
     const allToolCalls: AgentToolCall[] = [];
     const allToolResults: ToolResult[] = [];
+    setAgentToolCssStyles(layoutPreset?.cssStyles);
 
     try {
         const docContext = await buildInitialAgentContext();
@@ -405,10 +551,19 @@ export async function runAgentTurn(
         while (Date.now() - startedAt < maxRuntimeMs) {
             stepIndex += 1;
             onEvent?.({ type: 'status', message: `Agent 思考中，第 ${stepIndex} 轮`, step: stepIndex, elapsedMs: Date.now() - startedAt });
-            const step = await callAgentModel(options.model, messages, true);
-            if (step.reasoningTokens > 0) {
-                totalReasoningTokens += step.reasoningTokens;
-                onEvent?.({ type: 'thinking', message: `模型完成思考`, tokens: step.reasoningTokens, totalTokens: totalReasoningTokens, step: stepIndex });
+            let streamedReasoningTokens = 0;
+            const step = await callAgentModel(options.model, messages, true, {
+                onReasoningDelta: (_delta, tokenDelta) => {
+                    if (tokenDelta <= 0) return;
+                    streamedReasoningTokens += tokenDelta;
+                    totalReasoningTokens += tokenDelta;
+                    onEvent?.({ type: 'thinking', message: `模型流式思考中`, tokens: tokenDelta, totalTokens: totalReasoningTokens, step: stepIndex });
+                },
+            });
+            const unstreamedReasoningTokens = Math.max(0, step.reasoningTokens - streamedReasoningTokens);
+            if (unstreamedReasoningTokens > 0) {
+                totalReasoningTokens += unstreamedReasoningTokens;
+                onEvent?.({ type: 'thinking', message: `模型完成思考`, tokens: unstreamedReasoningTokens, totalTokens: totalReasoningTokens, step: stepIndex });
             }
             debugAgent('model:step', {
                 step: stepIndex,

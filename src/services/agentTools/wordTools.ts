@@ -11,9 +11,15 @@ import {
 } from '../../types/agent';
 import { docIRToHtml, paragraphsToDocIR } from '../docIrService';
 import { deleteSnapshot, restoreSnapshot } from '../documentSnapshotService';
-import { insertHtmlAsDocx } from '../../utils/htmlParser';
+import { applyInlineStyles, insertHtmlAsDocx } from '../../utils/htmlParser';
 
 type AnyRecord = Record<string, unknown>;
+
+let activeAgentCssStyles = '';
+
+export function setAgentToolCssStyles(cssStyles?: string) {
+    activeAgentCssStyles = cssStyles || '';
+}
 
 function ok<T>(call: AgentToolCall, data: T, summary: string): ToolResult<T> {
     return { toolCallId: call.id, toolName: call.name, ok: true, data, summary };
@@ -188,6 +194,31 @@ function buildSectionHtml(title: string, content: string, format: AgentContentFo
     return titleAlreadyPresent ? body : `${heading}\n${body}`;
 }
 
+function normalizeBuiltInStyleName(styleName: string): string | null {
+    const normalized = styleName.trim().replace(/\s+/g, '').toLowerCase();
+    const heading = normalized.match(/^(?:heading|标题)([1-9])$/);
+    if (heading) return `Heading${heading[1]}`;
+    if (normalized === 'normal' || normalized === '正文') return 'Normal';
+    if (normalized === 'title' || normalized === '标题') return 'Title';
+    if (normalized === 'subtitle' || normalized === '副标题') return 'Subtitle';
+    if (normalized === 'quote' || normalized === '引用') return 'Quote';
+    return null;
+}
+
+function headingStyleName(level: number): string {
+    return `Heading${clamp(level, 1, 9)}`;
+}
+
+function applyNamedStyleToParagraph(paragraph: Word.Paragraph, styleName: string) {
+    const builtInStyle = normalizeBuiltInStyleName(styleName);
+    const p = paragraph as unknown as { style?: string; styleBuiltIn?: string };
+    if (builtInStyle) {
+        p.styleBuiltIn = builtInStyle;
+    } else {
+        p.style = styleName;
+    }
+}
+
 function trimAround(text: string, start: number, end: number, contextChars: number) {
     return {
         textBefore: text.slice(Math.max(0, start - contextChars), start),
@@ -351,19 +382,28 @@ async function insertByFormat(
     format: AgentContentFormat
 ): Promise<void> {
     if (target === 'selection' && location === Word.InsertLocation.after && format === 'html') {
-        await insertHtmlAsDocx(context, content);
+        await insertHtmlAsDocx(context, content, activeAgentCssStyles);
         return;
     }
 
     const range = await getTargetRange(context, target);
     const normalized = coerceContentFormat(content, format);
     if (normalized.format === 'html') {
-        range.insertHtml(normalized.content, location);
+        const styledHtml = applyInlineStyles(normalized.content, activeAgentCssStyles);
+        const sacrificeMarker = `\u00AB\u00ABAGENT_SACRIFICE_${Date.now()}_${Math.random().toString(36).slice(2, 8)}\u00BB\u00BB`;
+        range.insertHtml(`${styledHtml}<p>${sacrificeMarker}</p>`, location);
+        await context.sync();
+        const sacrificeResults = context.document.body.search(sacrificeMarker, { matchCase: true, matchWholeWord: false });
+        sacrificeResults.load('items');
+        await context.sync();
+        if (sacrificeResults.items.length > 0) {
+            sacrificeResults.items[0].paragraphs.getFirst().delete();
+        }
     } else if (normalized.format === 'ooxml') {
         range.insertOoxml(normalized.content, location);
     } else if (normalized.format === 'docir') {
         const html = docIRToHtml(JSON.parse(normalized.content));
-        range.insertHtml(html, location);
+        range.insertHtml(applyInlineStyles(html, activeAgentCssStyles), location);
     } else {
         range.insertText(normalized.content, location);
     }
@@ -446,11 +486,11 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
     { name: 'insert_content', risk: 'write', description: 'Low-level insert text, HTML, DocIR, or OOXML content. For full sections prefer insert_section.', parameters: { type: 'object', required: ['content'], properties: { target: { type: 'string' }, location: { type: 'string', enum: ['start', 'end', 'before', 'after', 'replace'] }, format: { type: 'string', enum: ['text', 'html', 'docir', 'ooxml'] }, content: { type: 'string' } } } },
     { name: 'replace_range', risk: 'write', description: 'Replace a rangeRef with new content.', parameters: {} },
     { name: 'delete_range', risk: 'destructive', description: 'Delete a rangeRef.', parameters: {} },
-    { name: 'set_paragraph_format', risk: 'write', description: 'Apply paragraph formatting.', parameters: {} },
-    { name: 'set_text_format', risk: 'write', description: 'Apply text formatting.', parameters: {} },
-    { name: 'apply_named_style', risk: 'write', description: 'Apply a Word named style.', parameters: {} },
-    { name: 'define_or_update_style', risk: 'write', description: 'Reserved style definition tool.', parameters: {} },
-    { name: 'manage_headings', risk: 'write', description: 'Reserved heading management tool.', parameters: {} },
+    { name: 'set_paragraph_format', risk: 'write', description: 'Apply paragraph formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
+    { name: 'set_text_format', risk: 'write', description: 'Apply text formatting.', parameters: { type: 'object', additionalProperties: false, required: ['style'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, style: { type: 'object' } } } },
+    { name: 'apply_named_style', risk: 'write', description: 'Apply a Word named style to a target/rangeRef. For headings prefer built-in names Heading1..Heading9, not localized UI text.', parameters: { type: 'object', additionalProperties: false, required: ['styleName'], properties: { target: { type: 'string' }, rangeRef: { type: 'string' }, styleName: { type: 'string' } } } },
+    { name: 'define_or_update_style', risk: 'write', description: 'Reserved style definition tool; current Word API surface cannot reliably create named styles cross-platform.', parameters: { type: 'object', additionalProperties: true, properties: {} } },
+    { name: 'manage_headings', risk: 'write', description: 'Bulk apply heading outline levels. Use this instead of many apply_named_style calls when changing a document outline.', parameters: { type: 'object', additionalProperties: false, properties: { updates: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['rangeRef', 'level'], properties: { rangeRef: { type: 'string' }, level: { type: 'number' } } } }, rangeRefs: { type: 'array', items: { type: 'string' } }, level: { type: 'number' } } } },
     { name: 'insert_table_or_update_table', risk: 'write', description: 'Insert a simple table.', parameters: {} },
     { name: 'insert_toc', risk: 'write', description: 'Insert a table of contents field.', parameters: {} },
     { name: 'set_page_setup', risk: 'write', description: 'Apply section page setup.', parameters: {} },
@@ -507,6 +547,10 @@ export async function executeWordTool(call: AgentToolCall): Promise<ToolResult> 
                 return await setTextFormat(call);
             case 'apply_named_style':
                 return await applyNamedStyle(call);
+            case 'define_or_update_style':
+                return fail(call, 'TOOL_NOT_IMPLEMENTED', 'define_or_update_style 暂未实装：当前 Office.js 不能跨平台稳定创建/修改命名样式');
+            case 'manage_headings':
+                return await manageHeadings(call);
             case 'insert_table_or_update_table':
                 return await insertTable(call);
             case 'insert_toc':
@@ -923,7 +967,7 @@ function applyParagraphStyle(paragraph: Word.Paragraph, style: AnyRecord) {
 
 async function setParagraphFormat(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
-    const target = asString(args.target, 'selection');
+    const target = asString(args.rangeRef, asString(args.target, 'selection'));
     const style = asRecord(args.style);
     await Word.run(async (context) => {
         const range = await getTargetRange(context, target);
@@ -938,7 +982,7 @@ async function setParagraphFormat(call: AgentToolCall): Promise<ToolResult> {
 
 async function setTextFormat(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
-    const target = asString(args.target, 'selection');
+    const target = asString(args.rangeRef, asString(args.target, 'selection'));
     const style = asRecord(args.style);
     await Word.run(async (context) => {
         const range = await getTargetRange(context, target);
@@ -956,17 +1000,47 @@ async function setTextFormat(call: AgentToolCall): Promise<ToolResult> {
 
 async function applyNamedStyle(call: AgentToolCall): Promise<ToolResult> {
     const args = asRecord(call.arguments);
-    const target = asString(args.target, 'selection');
+    const target = asString(args.rangeRef, asString(args.target, 'selection'));
     const styleName = asString(args.styleName);
     if (!styleName) return fail(call, 'INVALID_ARGS', 'apply_named_style 缺少 styleName');
     await Word.run(async (context) => {
         const range = await getTargetRange(context, target);
         range.paragraphs.load('items');
         await context.sync();
-        range.paragraphs.items.forEach(paragraph => { paragraph.style = styleName; });
+        range.paragraphs.items.forEach(paragraph => applyNamedStyleToParagraph(paragraph, styleName));
         await context.sync();
     });
     return ok(call, { target, styleName }, `已应用样式 ${styleName}`);
+}
+
+async function manageHeadings(call: AgentToolCall): Promise<ToolResult> {
+    const args = asRecord(call.arguments);
+    const rawUpdates = Array.isArray(args.updates) ? args.updates : [];
+    const updates = rawUpdates
+        .map(item => asRecord(item))
+        .map(item => ({ rangeRef: asString(item.rangeRef), level: clamp(asNumber(item.level, 1), 1, 9) }))
+        .filter(item => item.rangeRef);
+
+    if (updates.length === 0 && Array.isArray(args.rangeRefs)) {
+        const level = clamp(asNumber(args.level, 1), 1, 9);
+        for (const rangeRef of args.rangeRefs) {
+            if (typeof rangeRef === 'string') updates.push({ rangeRef, level });
+        }
+    }
+
+    if (updates.length === 0) return fail(call, 'INVALID_ARGS', 'manage_headings 缺少 updates 或 rangeRefs');
+
+    await Word.run(async (context) => {
+        for (const update of updates) {
+            const range = await getTargetRange(context, update.rangeRef);
+            range.paragraphs.load('items');
+            await context.sync();
+            range.paragraphs.items.forEach(paragraph => applyNamedStyleToParagraph(paragraph, headingStyleName(update.level)));
+        }
+        await context.sync();
+    });
+
+    return ok(call, { updated: updates.length }, `已更新 ${updates.length} 个标题层级`);
 }
 
 async function insertTable(call: AgentToolCall): Promise<ToolResult> {
